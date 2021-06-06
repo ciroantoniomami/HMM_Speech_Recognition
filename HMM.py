@@ -8,7 +8,7 @@ import numpy as np
 warnings.filterwarnings('ignore')
 def extract_mfcc(full_audio_path):
     sample_rate, wave =  wavfile.read(full_audio_path)
-    mfcc_feature = mfcc.mfcc(wave,sample_rate, 0.025, 0.01,20,nfft = 1200, appendEnergy = True)   
+    mfcc_features = mfcc.mfcc(wave,sample_rate, 0.025, 0.01,20,nfft = 1200, appendEnergy = True)   
     return mfcc_features
 
 def buildDataSet(dir):
@@ -20,16 +20,13 @@ def buildDataSet(dir):
         #label = tmp.split('_')[1]
         feature = extract_mfcc(dir+fileName)
         if label not in dataset.keys():
-            dataset[label] = []
-            dataset[label].append(feature)
-        else:
-            exist_feature = dataset[label]
-            exist_feature.append(feature)
-            dataset[label] = exist_feature
+            dataset[label] = feature
+        
     return dataset
 
 
 
 if __name__ == "__main__":
 
-    buildDataSet("dataset")
+    data = buildDataSet("dataset/")
+    print(data["mic_F01_sa2"].shape[1])
