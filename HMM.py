@@ -31,7 +31,7 @@ def training(dataset):
     np.random.seed(42)
    
    
-    startprob = np.random.rand(1,5)
+    startprob = np.random.rand(5)
     transmat = np.random.rand(5,5)
     
 
@@ -72,12 +72,12 @@ def load_obj(name ):
 
 if __name__ == "__main__":
 
-    d = buildDataSet("dataset/")
-    save_obj(d, "dataset")
+    #d = buildDataSet("dataset/")
+    #save_obj(d, "dataset")
     d = load_obj("dataset")
 
     
 
 
 
-    #training(d)
+    training(d)
