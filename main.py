@@ -7,6 +7,8 @@ import pickle
 from pathlib import Path
 import librosa
 from scipy.io import wavfile
+import collections
+from operator import itemgetter
 
 def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_delta_delta=True):
     sample_rate, wave =  wavfile.read(full_audio_path)
@@ -93,7 +95,21 @@ def initByBakis(self, inumstates, ibakisLevel):
         transmatPrior = self.getTransmatPrior(inumstates, ibakisLevel)
         return startprobPrior, transmatPrior
 
+def predict(wordmodel, files):
+        features = get_feature_list(files)
+        Model_confidence = collections.namedtuple('model_prediction', ('name', 'score'))
+        predicted_labels_confs = []
 
+        for i in range(0, len(features)):
+            file_scores_confs = []
+            for model in wordmodel:
+                score = model.model.score(features[i])
+                label = model.label
+                file_scores_confs.append(Model_confidence(name=label, score=score))
+            file_scores_confs = sorted(file_scores_confs, key=itemgetter(1), reverse=True)
+            predicted_labels_confs.append(file_scores_confs[0])
+
+        return predicted_labels_confs
 
 
 
