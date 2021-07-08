@@ -67,7 +67,7 @@ def train( features, labels, bakisLevel=2):
         for j in range(len(wordmodel)):
             if wordmodel[j].label == labels[i]:
                 for k in features[i]:
-                wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, k))
+                    wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, k))
 
     for model in wordmodel:
         model.fit(model.traindata)
