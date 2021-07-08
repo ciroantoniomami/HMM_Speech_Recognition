@@ -14,7 +14,7 @@ def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_del
     sample_rate, wave =  wavfile.read(full_audio_path)
     mfcc_features = mfcc(wave,sample_rate, 0.025, 
     0.01,numcep=20,nfft = 1200, appendEnergy = True)   
-    print(mfcc_features.shape)
+    #print(mfcc_features.shape)
     wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
     if add_mfcc_delta:
         delta_features = delta(mfcc_features, num_delta)
@@ -129,5 +129,5 @@ if __name__ == "__main__":
     save_obj(features, "featureslist")
     save_obj(labels, "labelslist")
         
-    models = train(features, labels)
-    save_obj(models, "modelslist")
+    #models = train(features, labels)
+    #save_obj(models, "modelslist")
