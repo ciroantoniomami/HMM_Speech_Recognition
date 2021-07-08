@@ -5,7 +5,7 @@ import os
 from python_speech_features import mfcc, delta
 import pickle
 from pathlib import Path
-import librosa
+#import librosa
 from scipy.io import wavfile
 import collections
 from operator import itemgetter
@@ -19,10 +19,10 @@ def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_del
     if add_mfcc_delta:
         delta_features = delta(mfcc_features, num_delta)
         wav_features = np.append(wav_features, delta_features, 1)
-    if add_mfcc_delta_delta:
-        delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
-        wav_features = np.append(wav_features, delta_delta_features, 1)
-    wav_features = np.append(mfcc_features, wav_features, 1)
+    #if add_mfcc_delta_delta:
+    #    delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
+    #    wav_features = np.append(wav_features, delta_delta_features, 1)
+    #wav_features = np.append(mfcc_features, wav_features, 1)
        
     
     return wav_features
@@ -47,7 +47,7 @@ def get_feature_list(path):
 
 
 class SpeechModel:
-    def __init__(self, Class, label, transmatPrior, startprobPrior, m_n_iter=10, n_features_traindata=20):
+    def __init__(self, Class, label, transmatPrior, startprobPrior, m_n_iter=10, n_features_traindata=40):
         self.Class = Class
         self.label = label 
         self.model = GMMHMM(n_components=3, n_mix=7,
