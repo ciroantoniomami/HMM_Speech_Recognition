@@ -64,16 +64,15 @@ def train( features, labels, bakisLevel=2):
     for i in range(features):
         for j in range(len(wordmodel)):
             if wordmodel[j].label == labels[i]:
-                wordmodel[j].traindata= np.concatenate(wordmodel[j].traindata,
-                 features[i])
+                wordmodel[j].traindata= np.concatenate(wordmodel[j].traindata, features[i])
 
     for model in wordmodel:
         model.fit(model.traindata)
     
     n_spoken = len(words)
-        print(f'Training completed -- {n_spoken} GMM-HMM models are built for {n_spoken} different types of words')
+    print(f'Training completed -- {n_spoken} GMM-HMM models are built for {n_spoken} different types of words')
 
-
+    return wordmodel
 
 def getTransmatPrior(inumstates, bakisLevel):
         transmatPrior = (1 / float(bakisLevel)) * np.eye(inumstates)
@@ -110,7 +109,9 @@ def load_obj(name ):
 
 
 if __name__ == "__main__":
-    #features = get_feature_list("train/audio")
-    #save_obj(features, "featureslist")
-    #print(getTransmatPrior(3,2))
-
+    features , labels= get_feature_list("train/audio")
+    save_obj(features, "featureslist")
+    save_obj(labels, "labelslist")
+        
+    models = train(features, labels)
+    save_obj(models, "modelslist")
