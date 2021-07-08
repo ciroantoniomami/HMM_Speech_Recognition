@@ -53,7 +53,7 @@ class SpeechModel:
         self.model = GMMHMM(n_components=3, n_mix=7,
                                 transmat_prior=transmatPrior, startprob_prior=startprobPrior,
                                 covariance_type='diag', n_iter=m_n_iter)
-        self.traindata = np.zeros((0, n_features_traindata))
+        self.traindata = np.zeros( n_features_traindata)
 
 
 def train( features, labels, bakisLevel=2):
@@ -66,7 +66,8 @@ def train( features, labels, bakisLevel=2):
     for i in range(len(features)):
         for j in range(len(wordmodel)):
             if wordmodel[j].label == labels[i]:
-                wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, features[i]))
+                for k in features[i]
+                wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, k))
 
     for model in wordmodel:
         model.fit(model.traindata)
@@ -125,11 +126,11 @@ def load_obj(name ):
 
 
 if __name__ == "__main__":
-    features , labels= get_feature_list("train/audio")
-    save_obj(features, "featureslist")
-    save_obj(labels, "labelslist")
-    #features = load_obj("featureslist")
-    #labels = load_obj("labelslist")
-    #print(features[123].shape)
-    #models = train(features, labels)
-    #save_obj(models, "modelslist")
+    #features , labels= get_feature_list("train/audio")
+    #save_obj(features, "featureslist")
+    #save_obj(labels, "labelslist")
+    features = load_obj("featureslist")
+    labels = load_obj("labelslist")
+    print(features[123].shape)
+    models = train(features, labels)
+    save_obj(models, "modelslist")
