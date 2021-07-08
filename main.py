@@ -22,7 +22,7 @@ def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_del
     #if add_mfcc_delta_delta:
     #    delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
     #    wav_features = np.append(wav_features, delta_delta_features, 1)
-    #wav_features = np.append(mfcc_features, wav_features, 1)
+    wav_features = np.append(mfcc_features, wav_features, 1)
        
     
     return wav_features
@@ -125,11 +125,11 @@ def load_obj(name ):
 
 
 if __name__ == "__main__":
-    #features , labels= get_feature_list("train/audio")
-    #save_obj(features, "featureslist")
-    #save_obj(labels, "labelslist")
-    features = load_obj("featureslist")
-    labels = load_obj("labelslist")
-    print(features[123].shape)
-    models = train(features, labels)
-    save_obj(models, "modelslist")
+    features , labels= get_feature_list("train/audio")
+    save_obj(features, "featureslist")
+    save_obj(labels, "labelslist")
+    #features = load_obj("featureslist")
+    #labels = load_obj("labelslist")
+    #print(features[123].shape)
+    #models = train(features, labels)
+    #save_obj(models, "modelslist")
