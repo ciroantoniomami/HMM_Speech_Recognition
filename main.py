@@ -53,20 +53,20 @@ class SpeechModel:
         self.model = GMMHMM(n_components=3, n_mix=7,
                                 transmat_prior=transmatPrior, startprob_prior=startprobPrior,
                                 covariance_type='diag', n_iter=m_n_iter)
-        self.traindata = np.zero((0, n_features_traindata))
+        self.traindata = np.zeros((0, n_features_traindata))
 
 
 def train( features, labels, bakisLevel=2):
-    words = set(labels)
+    words = list(set(labels))
     wordmodel = [None]*len(words)
     transmatPrior, startprobPrior = initByBakis(3,bakisLevel)
     for i in range(len(words)):
         wordmodel[i]= SpeechModel(i, words[i], transmatPrior, startprobPrior)
 
-    for i in range(features):
+    for i in range(len(features)):
         for j in range(len(wordmodel)):
             if wordmodel[j].label == labels[i]:
-                wordmodel[j].traindata= np.concatenate(wordmodel[j].traindata, features[i])
+                wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, features[i]))
 
     for model in wordmodel:
         model.fit(model.traindata)
@@ -89,10 +89,10 @@ def getTransmatPrior(inumstates, bakisLevel):
 
         return transmatPrior
 
-def initByBakis(self, inumstates, ibakisLevel):
+def initByBakis(inumstates, ibakisLevel):
         startprobPrior = np.zeros(inumstates)
         startprobPrior[0: ibakisLevel - 1] = 1 / float((ibakisLevel - 1))
-        transmatPrior = self.getTransmatPrior(inumstates, ibakisLevel)
+        transmatPrior = getTransmatPrior(inumstates, ibakisLevel)
         return startprobPrior, transmatPrior
 
 def predict(wordmodel, files):
@@ -125,9 +125,11 @@ def load_obj(name ):
 
 
 if __name__ == "__main__":
-    features , labels= get_feature_list("train/audio")
-    save_obj(features, "featureslist")
-    save_obj(labels, "labelslist")
-        
-    #models = train(features, labels)
-    #save_obj(models, "modelslist")
+    #features , labels= get_feature_list("train/audio")
+    #save_obj(features, "featureslist")
+    #save_obj(labels, "labelslist")
+    features = load_obj("featureslist")
+    labels = load_obj("labelslist")
+    print(features[123].shape)
+    models = train(features, labels)
+    save_obj(models, "modelslist")
