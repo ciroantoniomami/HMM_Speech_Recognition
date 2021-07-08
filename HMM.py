@@ -10,7 +10,8 @@ import pickle
 warnings.filterwarnings('ignore')
 def extract_mfcc(full_audio_path):
     sample_rate, wave =  wavfile.read(full_audio_path)
-    mfcc_features = mfcc.mfcc(wave,sample_rate, 0.025, 0.01,20,nfft = 1200, appendEnergy = True)   
+    mfcc_features = mfcc.mfcc(wave,sample_rate, 0.025, 0.01,numcep=20,nfft = 1200, appendEnergy = True)   
+    print(mfcc_features.shape)
     return mfcc_features
 
 def buildDataSet(dir):
@@ -74,10 +75,13 @@ if __name__ == "__main__":
 
     #d = buildDataSet("dataset/")
     #save_obj(d, "dataset")
-    d = load_obj("dataset")
+    #d = load_obj("dataset")
+
+    extract_mfcc("dataset/mic_F01_si454.wav")
+
+
 
     
 
 
-
-    training(d)
+  

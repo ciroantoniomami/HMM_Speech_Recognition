@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.hmm import GMMHMM
+from hmmlearn.hmm import GMMHMM
 import warnings
 import os
 import python_speech_features as mfcc, delta
@@ -44,8 +44,8 @@ def get_feature_list(path):
 
 
 class SpeechModel:
-    def __init__(self, class, label, m_transmatPrior, m_startprobPrior, m_n_iter=10, n_features_traindata=6):
-        self.class = class
+    def __init__(self, Class, label, m_transmatPrior, m_startprobPrior, m_n_iter=10, n_features_traindata=6):
+        self.Class = Class
         self.label = label 
         self.model = GMMHMM(n_components=3, n_mix=7,
                                 transmat_prior=m_transmatPrior, startprob_prior=m_startprobPrior,
@@ -53,7 +53,7 @@ class SpeechModel:
         self.traindata = np.zero((0, n_features_traindata))
 
 
-
+def train()
 
 def save_obj(obj, name ):
     with open('obj/'+ name + '.pkl', 'wb') as f:
