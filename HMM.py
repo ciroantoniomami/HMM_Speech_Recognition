@@ -1,87 +1,77 @@
+from __future__ import print_function
 import warnings
 import os
-import python_speech_features as mfcc
+from python_speech_features import mfcc
 from scipy.io import wavfile
 from hmmlearn import hmm
 import numpy as np
+from pathlib import Path
 import pickle
-
-
 warnings.filterwarnings('ignore')
 def extract_mfcc(full_audio_path):
     sample_rate, wave =  wavfile.read(full_audio_path)
-    mfcc_features = mfcc.mfcc(wave,sample_rate, 0.025, 0.01,numcep=20,nfft = 1200, appendEnergy = True)   
-    print(mfcc_features.shape)
+    mfcc_features = mfcc(wave,sample_rate, 0.025, 
+    0.01,numcep=12,nfft = 1200, appendEnergy = True) 
     return mfcc_features
 
 def buildDataSet(dir):
     # Filter out the wav audio files under the dir
-    fileList = [f for f in os.listdir(dir) if os.path.splitext(f)[1] == '.wav']
+    fileList = list(Path(dir).rglob('*.wav'))
     dataset = {}
     for fileName in fileList:
-        label = fileName.split('.')[0]
-        #label = tmp.split('_')[1]
-        feature = extract_mfcc(dir+fileName)
+        #tmp = fileName.split('.')[0]
+        label = fileName.parent.stem 
+        feature = extract_mfcc(fileName)
         if label not in dataset.keys():
-            dataset[label] = feature
-
-        
+            dataset[label] = []
+            dataset[label].append(feature)
+        else:
+            exist_feature = dataset[label]
+            exist_feature.append(feature)
+            dataset[label] = exist_feature
     return dataset
 
-def training(dataset):
-    np.random.seed(42)
-   
-   
-    startprob = np.random.rand(5)
-    transmat = np.random.rand(5,5)
-    
+def train_GMMHMM(dataset):
+    GMMHMM_Models = {}
+    states_num = 5
+    GMM_mix_num = 3
+    tmp_p = 1.0/(states_num-2)
+    transmatPrior = np.array([[tmp_p, tmp_p, tmp_p, 0 ,0], \
+                               [0, tmp_p, tmp_p, tmp_p , 0], \
+                               [0, 0, tmp_p, tmp_p,tmp_p], \
+                               [0, 0, 0, 0.5, 0.5], \
+                               [0, 0, 0, 0, 1]],dtype=np.float)
 
-    for i in range(5):
-        for j in range(i):
-            transmat[i][j]=0
-    
-    model = hmm.GMMHMM(n_components=5, n_mix=3, 
-                           transmat_prior= transmat, startprob_prior=startprob, 
-                           covariance_type='diag', n_iter=10)
-    
-    
-    lengths = []
-    
-    first = True
+
+    startprobPrior = np.array([0.5, 0.5, 0, 0, 0],dtype=np.float)
+
     for label in dataset.keys():
-        
-        if first == True: 
-            traindata = dataset[label]
-            first = False
-        else:
-            
-            
-            traindata = np.concatenate([traindata, dataset[label]])
-           
-        lengths.append(dataset[label].shape[0])
-
-    model.fit(traindata, lengths )
-
+        model = hmm.GMMHMM(n_components=states_num, n_mix=GMM_mix_num, \
+                           transmat_prior=transmatPrior, startprob_prior=startprobPrior, \
+                           covariance_type='diag', n_iter=10)
+        trainData = dataset[label]
+        length = np.zeros([len(trainData), ], dtype=np.int)
+        for m in range(len(trainData)):
+            length[m] = trainData[m].shape[0]
+        trainData = np.vstack(trainData)
+        print("1")
+        model.fit(trainData, lengths=length)  # get optimal parameters
+        GMMHMM_Models[label] = model
+    return GMMHMM_Models
 
 def save_obj(obj, name ):
     with open('obj/'+ name + '.pkl', 'wb') as f:
         pickle.dump(obj, f)
 
-def load_obj(name ):
-    with open('obj/' + name + '.pkl', 'rb') as f:
-        return pickle.load(f)
-
 if __name__ == "__main__":
+    trainDir = "train/audio"
+    trainDataSet = buildDataSet(trainDir)
+    print("Finish prepare the training data")
 
-    #d = buildDataSet("dataset/")
-    #save_obj(d, "dataset")
-    #d = load_obj("dataset")
+    hmmModels = train_GMMHMM(trainDataSet)
+    save_obj(hmmModels, "modelslist")
+    print("Finish training of the GMM_HMM models for digits 0-9")
 
-    extract_mfcc("dataset/mic_F01_si454.wav")
-
-
-
-    
 
 
   
