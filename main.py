@@ -13,12 +13,12 @@ from operator import itemgetter
 def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_delta_delta=True):
     sample_rate, wave =  wavfile.read(full_audio_path)
     mfcc_features = mfcc(wave,sample_rate, 0.025, 
-    0.01,numcep=20,nfft = 1200, appendEnergy = True)   
+    0.01,numcep=12,nfft = 1200, appendEnergy = True)   
     #print(mfcc_features.shape)
     wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
-    if add_mfcc_delta:
-        delta_features = delta(mfcc_features, num_delta)
-        wav_features = np.append(wav_features, delta_features, 1)
+    #if add_mfcc_delta:
+    #    delta_features = delta(mfcc_features, num_delta)
+    #    wav_features = np.append(wav_features, delta_features, 1)
     #if add_mfcc_delta_delta:
     #    delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
     #    wav_features = np.append(wav_features, delta_delta_features, 1)
@@ -47,7 +47,7 @@ def get_feature_list(path):
 
 
 class SpeechModel:
-    def __init__(self, Class, label, transmatPrior, startprobPrior, m_n_iter=10, n_features_traindata=40):
+    def __init__(self, Class, label, transmatPrior, startprobPrior, m_n_iter=10, n_features_traindata=12):
         self.Class = Class
         self.label = label 
         self.model = GMMHMM(n_components=3, n_mix=7,
@@ -70,7 +70,7 @@ def train( features, labels, bakisLevel=2):
                     wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, k))
 
     for model in wordmodel:
-        model.fit(model.traindata)
+        model.model.fit(model.traindata)
     
     n_spoken = len(words)
     print(f'Training completed -- {n_spoken} GMM-HMM models are built for {n_spoken} different types of words')
