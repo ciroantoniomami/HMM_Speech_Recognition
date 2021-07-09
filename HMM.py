@@ -7,6 +7,8 @@ from hmmlearn import hmm
 import numpy as np
 from pathlib import Path
 import pickle
+from operator import itemgetter
+import collections
 warnings.filterwarnings('ignore')
 def extract_mfcc(full_audio_path):
     sample_rate, wave =  wavfile.read(full_audio_path)
@@ -63,14 +65,40 @@ def save_obj(obj, name ):
     with open('obj/'+ name + '.pkl', 'wb') as f:
         pickle.dump(obj, f)
 
-if __name__ == "__main__":
-    trainDir = "train/audio"
-    trainDataSet = buildDataSet(trainDir)
-    print("Finish prepare the training data")
 
-    hmmModels = train_GMMHMM(trainDataSet)
-    save_obj(hmmModels, "modelslist")
-    print("Finish training of the GMM_HMM models for digits 0-9")
+
+def load_obj(name ):
+    with open('obj/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+def predict(wordmodel, files):
+        features = []
+        features.append(extract_mfcc(files))
+        Model_confidence = collections.namedtuple('model_prediction', ('name', 'score'))
+        predicted_labels_confs = []
+
+        for i in range(0, len(features)):
+            file_scores_confs = []
+            for key,value in wordmodel.items():
+                score = value.score(features[i])
+                label = key
+                file_scores_confs.append(Model_confidence(name=label, score=score))
+            file_scores_confs = sorted(file_scores_confs, key=itemgetter(1), reverse=True)
+            predicted_labels_confs.append(file_scores_confs[0])
+
+        return predicted_labels_confs
+
+if __name__ == "__main__":
+    #trainDir = "train/audio"
+    #trainDataSet = buildDataSet(trainDir)
+    #print("Finish prepare the training data")
+#
+    #hmmModels = train_GMMHMM(trainDataSet)
+    #save_obj(hmmModels, "modelslist")
+    #print("Finish training of the GMM_HMM models for digits 0-9")
+
+    Models = load_obj("modelslist")
+    print(predict(Models,"yes.wav"))
 
 
 
