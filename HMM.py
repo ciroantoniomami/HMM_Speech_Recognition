@@ -1,7 +1,8 @@
 from __future__ import print_function
+from pyexpat import features
 import warnings
 import os
-from python_speech_features import mfcc
+from python_speech_features import mfcc, delta
 from scipy.io import wavfile
 from hmmlearn import hmm
 import numpy as np
@@ -14,6 +15,7 @@ def extract_mfcc(full_audio_path):
     sample_rate, wave =  wavfile.read(full_audio_path)
     mfcc_features = mfcc(wave,sample_rate, 0.025, 
     0.01,numcep=12,nfft = 1200, appendEnergy = True) 
+    
     return mfcc_features
 
 def buildDataSet(dir):
@@ -35,8 +37,8 @@ def buildDataSet(dir):
 
 def train_GMMHMM(dataset):
     GMMHMM_Models = {}
-    states_num = 5
-    GMM_mix_num = 3
+    states_num = 3
+    GMM_mix_num = 7
     tmp_p = 1.0/(states_num-2)
     transmatPrior = np.array([[tmp_p, tmp_p, tmp_p, 0 ,0], \
                                [0, tmp_p, tmp_p, tmp_p , 0], \
@@ -89,16 +91,34 @@ def predict(wordmodel, files):
         return predicted_labels_confs
 
 if __name__ == "__main__":
-    #trainDir = "train/audio"
-    #trainDataSet = buildDataSet(trainDir)
-    #print("Finish prepare the training data")
-#
-    #hmmModels = train_GMMHMM(trainDataSet)
-    #save_obj(hmmModels, "modelslist")
-    #print("Finish training of the GMM_HMM models for digits 0-9")
+    trainDir = "train/audio"
+    trainDataSet = buildDataSet(trainDir)
+    print("Finish prepare the training data")
+    hmmModels = train_GMMHMM(trainDataSet)
+    save_obj(hmmModels, "modelslist")
+    print("Finish training of the GMM_HMM models for digits 0-9")
 
-    Models = load_obj("modelslist")
-    print(predict(Models,"yes.wav"))
+    hmmModels = load_obj("modelslist")
+    testDir = "test"
+    testDataSet = buildDataSet(testDir)
+
+    score_cnt = 0
+    tot = 0
+    for label in testDataSet.keys():
+        feature = testDataSet[label]
+        scoreList = {}
+        for f in feature:
+            tot += 1
+            for model_label in hmmModels.keys():
+                model = hmmModels[model_label]
+                score = model.score(f)
+                scoreList[model_label] = score
+            predict = max(scoreList, key=scoreList.get)
+            #print("Test on true label ", label, ": predict result label is ", predict)
+            if predict == label:
+                score_cnt+=1
+    print("Final recognition rate is %.2f"%(100.0*score_cnt/tot), "%")
+
 
 
 
