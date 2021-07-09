@@ -39,15 +39,13 @@ def train_GMMHMM(dataset):
     GMMHMM_Models = {}
     states_num = 3
     GMM_mix_num = 7
-    tmp_p = 1.0/(states_num-2)
-    transmatPrior = np.array([[tmp_p, tmp_p, tmp_p, 0 ,0], \
-                               [0, tmp_p, tmp_p, tmp_p , 0], \
-                               [0, 0, tmp_p, tmp_p,tmp_p], \
-                               [0, 0, 0, 0.5, 0.5], \
-                               [0, 0, 0, 0, 1]],dtype=np.float)
+    tmp_p = 1.0/(states_num-1)
+    transmatPrior = np.array([[tmp_p, tmp_p, 0], \
+                               [0, tmp_p, tmp_p], \
+                               [0, 0, tmp_p]],dtype=np.float)
 
 
-    startprobPrior = np.array([0.5, 0.5, 0, 0, 0],dtype=np.float)
+    startprobPrior = np.array([1, 0, 0],dtype=np.float)
 
     for label in dataset.keys():
         model = hmm.GMMHMM(n_components=states_num, n_mix=GMM_mix_num, \
@@ -91,8 +89,10 @@ def predict(wordmodel, files):
         return predicted_labels_confs
 
 if __name__ == "__main__":
-    trainDir = "train/audio"
-    trainDataSet = buildDataSet(trainDir)
+    #trainDir = "train/audio"
+    #trainDataSet = buildDataSet(trainDir)
+    #save_obj(trainDataSet,"trainset")
+    trainDataSet = load_obj("trainset")
     print("Finish prepare the training data")
     hmmModels = train_GMMHMM(trainDataSet)
     save_obj(hmmModels, "modelslist")
