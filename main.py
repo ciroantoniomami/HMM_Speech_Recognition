@@ -13,12 +13,12 @@ from operator import itemgetter
 def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_delta_delta=True):
     sample_rate, wave =  wavfile.read(full_audio_path)
     mfcc_features = mfcc(wave,sample_rate, 0.025, 
-    0.01,numcep=12,nfft = 1200, appendEnergy = True)   
+    0.01,numcep=6,nfft = 1200, appendEnergy = True)   
     #print(mfcc_features.shape)
     wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
-    #if add_mfcc_delta:
-    #    delta_features = delta(mfcc_features, num_delta)
-    #    wav_features = np.append(wav_features, delta_features, 1)
+    if add_mfcc_delta:
+        delta_features = delta(mfcc_features, num_delta)
+        wav_features = np.append(wav_features, delta_features, 1)
     #if add_mfcc_delta_delta:
     #    delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
     #    wav_features = np.append(wav_features, delta_delta_features, 1)
@@ -53,7 +53,7 @@ class SpeechModel:
         self.model = GMMHMM(n_components=3, n_mix=7,
                                 transmat_prior=transmatPrior, startprob_prior=startprobPrior,
                                 covariance_type='diag', n_iter=m_n_iter)
-        self.traindata = np.zeros( n_features_traindata)
+        self.traindata = np.zeros((0,n_features_traindata))
 
 
 def train( features, labels, bakisLevel=2):
@@ -65,12 +65,13 @@ def train( features, labels, bakisLevel=2):
 
     for i in range(len(features)):
         for j in range(len(wordmodel)):
+            lengths = [len(wordmodel[j].traindata)]
             if wordmodel[j].label == labels[i]:
-                for k in features[i]:
-                    wordmodel[j].traindata= np.concatenate((wordmodel[j].traindata, k))
+                wordmodel[j].traindata= np.concatenate([wordmodel[j].traindata, features[i]])
+                lengths.append(len(features[i]))
 
     for model in wordmodel:
-        model.model.fit(model.traindata)
+        model.model.fit(model.traindata,lengths)
     
     n_spoken = len(words)
     print(f'Training completed -- {n_spoken} GMM-HMM models are built for {n_spoken} different types of words')
@@ -126,11 +127,11 @@ def load_obj(name ):
 
 
 if __name__ == "__main__":
-    #features , labels= get_feature_list("train/audio")
-    #save_obj(features, "featureslist")
-    #save_obj(labels, "labelslist")
-    features = load_obj("featureslist")
-    labels = load_obj("labelslist")
+    features , labels= get_feature_list("train/audio2")
+    save_obj(features, "featureslist")
+    save_obj(labels, "labelslist")
+    #features = load_obj("featureslist")
+    #labels = load_obj("labelslist")
     print(features[123].shape)
     models = train(features, labels)
     save_obj(models, "modelslist")
