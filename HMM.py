@@ -3,6 +3,7 @@ from pyexpat import features
 import warnings
 import os
 from python_speech_features import mfcc, delta
+import librosa
 from scipy.io import wavfile
 from hmmlearn import hmm
 import numpy as np
@@ -11,12 +12,22 @@ import pickle
 from operator import itemgetter
 import collections
 warnings.filterwarnings('ignore')
-def extract_mfcc(full_audio_path):
+def extract_mfcc(full_audio_path,add_mfcc_delta=True,add_mfcc_delta_delta=True,num_delta=5):
     sample_rate, wave =  wavfile.read(full_audio_path)
     mfcc_features = mfcc(wave,sample_rate, 0.025, 
-    0.01,numcep=12,nfft = 1200, appendEnergy = True) 
+    0.01,numcep=14,nfft = 1200, appendEnergy = True)
+    wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
+    if add_mfcc_delta:
+        delta_features = delta(mfcc_features, num_delta)
+        wav_features = np.append(wav_features, delta_features, 1) 
+    if add_mfcc_delta_delta:
+        delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
+        wav_features = np.append(wav_features, delta_delta_features, 1)
+    wav_features = np.append(mfcc_features, wav_features, 1)
     
-    return mfcc_features
+    return wav_features
+
+
 
 def buildDataSet(dir):
     # Filter out the wav audio files under the dir
@@ -37,15 +48,18 @@ def buildDataSet(dir):
 
 def train_GMMHMM(dataset):
     GMMHMM_Models = {}
-    states_num = 3
-    GMM_mix_num = 7
-    tmp_p = 1.0/(states_num-1)
-    transmatPrior = np.array([[tmp_p, tmp_p, 0], \
-                               [0, tmp_p, tmp_p], \
-                               [0, 0, tmp_p]],dtype=np.float)
+    states_num = 5
+    GMM_mix_num = 17
+    tmp_p = 1.0/(states_num-2)
+    transmatPrior = np.array([[tmp_p, tmp_p, tmp_p, 0 ,0], \
+                               [0, tmp_p, tmp_p, tmp_p , 0], \
+                               [0, 0, tmp_p, tmp_p,tmp_p], \
+                               [0, 0, 0, 0.5, 0.5], \
+                               [0, 0, 0, 0, 1]],dtype=np.float)
 
 
-    startprobPrior = np.array([1, 0, 0],dtype=np.float)
+    startprobPrior = np.array([0.5, 0.5, 0, 0, 0],dtype=np.float)
+
 
     for label in dataset.keys():
         model = hmm.GMMHMM(n_components=states_num, n_mix=GMM_mix_num, \
@@ -92,38 +106,34 @@ if __name__ == "__main__":
     trainDir = "Crema/trainemotion/"
     trainDataSet = buildDataSet(trainDir)
     save_obj(trainDataSet,"trainsetemotion")
-    #trainDataSet = load_obj("trainsetemotion")
-    #print("Finish prepare the training data")
-    #hmmModels = train_GMMHMM(trainDataSet)
-    #save_obj(hmmModels, "modelslist")
-    #print("Finish training of the GMM_HMM models for digits 0-9")
-
-    #hmmModels = load_obj("modelslist")
-    #testDir = "Crema/testemotion"
-    #testDataSet = buildDataSet(testDir)
-    #score_cnt = 0
-    #tot = 0
-    #for label in testDataSet.keys():
-    #    label_cont = 0
-    #    feature = testDataSet[label]
-    #    scoreList = {}
-    #    label_sc = 0
-    #    for f in feature:
-    #        label_cont+=1
-    #        tot += 1
-    #        for model_label in hmmModels.keys():
-    #            model = hmmModels[model_label]
-    #            score = model.score(f)
-    #            scoreList[model_label] = score
-    #        predict = max(scoreList, key=scoreList.get)
-    #        #print("Test on true label ", label, ": predict result label is ", predict)
-    #        if predict == label:
-    #            label_sc +=1
-    #            score_cnt+=1
-    #    print("score rate for",label,"is:%.2f"%(100.0*label_sc/label_cont), "%")
-    #print("Final recognition rate is %.2f"%(100.0*score_cnt/tot), "%")
-
-
+    trainDataSet = load_obj("trainsetemotion")
+    hmmModels = train_GMMHMM(trainDataSet)
+    save_obj(hmmModels, "modelslist")
+    print("Finish training of the GMM_HMM models for digits 0-9")
+    hmmModels = load_obj("modelslist")
+    testDir = "Crema/testemotion/"
+    testDataSet = buildDataSet(testDir)
+    score_cnt = 0
+    tot = 0
+    for label in testDataSet.keys():
+        label_cont = 0
+        feature = testDataSet[label]
+        scoreList = {}
+        label_sc = 0
+        for f in feature:
+            label_cont+=1
+            tot += 1
+            for model_label in hmmModels.keys():
+                model = hmmModels[model_label]
+                score = model.score(f)
+                scoreList[model_label] = score
+            predict = max(scoreList, key=scoreList.get)
+            #print("Test on true label ", label, ": predict result label is ", predict)
+            if predict == label:
+                label_sc +=1
+                score_cnt+=1
+        print("score rate for",label,"is:%.2f"%(100.0*label_sc/label_cont), "%")
+    print("Final recognition rate is %.2f"%(100.0*score_cnt/tot), "%")
 
 
   
