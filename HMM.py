@@ -20,12 +20,12 @@ def extract_mfcc(full_audio_path):
 
 def buildDataSet(dir):
     # Filter out the wav audio files under the dir
-    fileList = list(Path(dir).rglob('*.wav'))
+    fileList = [f for f in os.listdir(dir) if os.path.splitext(f)[1] == '.wav']
     dataset = {}
     for fileName in fileList:
         #tmp = fileName.split('.')[0]
-        label = fileName.parent.stem 
-        feature = extract_mfcc(fileName)
+        label = fileName.split("_")[-2]
+        feature = extract_mfcc(dir+fileName)
         if label not in dataset.keys():
             dataset[label] = []
             dataset[label].append(feature)
@@ -89,35 +89,39 @@ def predict(wordmodel, files):
         return predicted_labels_confs
 
 if __name__ == "__main__":
-    #trainDir = "train/audio"
-    #trainDataSet = buildDataSet(trainDir)
-    #save_obj(trainDataSet,"trainset")
-    trainDataSet = load_obj("trainset")
-    print("Finish prepare the training data")
-    hmmModels = train_GMMHMM(trainDataSet)
-    save_obj(hmmModels, "modelslist")
-    print("Finish training of the GMM_HMM models for digits 0-9")
+    trainDir = "Crema/trainemotion/"
+    trainDataSet = buildDataSet(trainDir)
+    save_obj(trainDataSet,"trainsetemotion")
+    #trainDataSet = load_obj("trainsetemotion")
+    #print("Finish prepare the training data")
+    #hmmModels = train_GMMHMM(trainDataSet)
+    #save_obj(hmmModels, "modelslist")
+    #print("Finish training of the GMM_HMM models for digits 0-9")
 
-    hmmModels = load_obj("modelslist")
-    testDir = "test"
-    testDataSet = buildDataSet(testDir)
-
-    score_cnt = 0
-    tot = 0
-    for label in testDataSet.keys():
-        feature = testDataSet[label]
-        scoreList = {}
-        for f in feature:
-            tot += 1
-            for model_label in hmmModels.keys():
-                model = hmmModels[model_label]
-                score = model.score(f)
-                scoreList[model_label] = score
-            predict = max(scoreList, key=scoreList.get)
-            #print("Test on true label ", label, ": predict result label is ", predict)
-            if predict == label:
-                score_cnt+=1
-    print("Final recognition rate is %.2f"%(100.0*score_cnt/tot), "%")
+    #hmmModels = load_obj("modelslist")
+    #testDir = "Crema/testemotion"
+    #testDataSet = buildDataSet(testDir)
+    #score_cnt = 0
+    #tot = 0
+    #for label in testDataSet.keys():
+    #    label_cont = 0
+    #    feature = testDataSet[label]
+    #    scoreList = {}
+    #    label_sc = 0
+    #    for f in feature:
+    #        label_cont+=1
+    #        tot += 1
+    #        for model_label in hmmModels.keys():
+    #            model = hmmModels[model_label]
+    #            score = model.score(f)
+    #            scoreList[model_label] = score
+    #        predict = max(scoreList, key=scoreList.get)
+    #        #print("Test on true label ", label, ": predict result label is ", predict)
+    #        if predict == label:
+    #            label_sc +=1
+    #            score_cnt+=1
+    #    print("score rate for",label,"is:%.2f"%(100.0*label_sc/label_cont), "%")
+    #print("Final recognition rate is %.2f"%(100.0*score_cnt/tot), "%")
 
 
 
