@@ -14,6 +14,7 @@ from hmmlearn import hmm
 import pickle
 import time
 from scipy.io import wavfile
+from plot_conf_mat import plot_confusion_matrix
 update_dnn = True
 fast_update = False
 forward_backward = False
@@ -25,7 +26,7 @@ def read_wav(fpath):
     sample_rate, signal = wavfile.read(fpath)
     return sample_rate, signal
 
-def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = False, add_mfcc_delta_delta = False):
+def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mfcc_delta_delta = True):
     mfcc_features = mfcc(signal, samplerate=sample_rate, numcep=12)
     wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
     if add_mfcc_delta:
@@ -309,6 +310,7 @@ def load_list(file_name):
     with open(file_name, "rb") as fp:   # Unpickling
         return pickle.load(fp)
 
+
 if __name__ == "__main__":
 
     tmp_p = 1.0/3
@@ -322,7 +324,7 @@ if __name__ == "__main__":
 
     features, labels, spoken = read_wav_get_features()
     traindata = [None]*len(spoken)
-    for i in len(traindata):
+    for i in range(len(traindata)):
         traindata[i] = np.zeros((0,36))
     val_i_end = int(0.2*len(features))
     for i in range(val_i_end, len(features[val_i_end:])):
@@ -333,7 +335,7 @@ if __name__ == "__main__":
     gmmhmm_module_list = []
     seq_mapper = []
 
-    for i in range(spoken):
+    for i in range(len(spoken)):
             gmmhmm_module_list.append(hmm.GMMHMM(n_components=5, n_mix=18,
                                                  covariance_type='diag', transmat_prior=transmatPrior, startprob_prior=startprobPrior, n_iter=10))
 
@@ -398,3 +400,23 @@ if __name__ == "__main__":
 
         module.fit(traindata[i])
     print("Train Time: ", time.time() - start_train_time)
+
+    predicted_label_list = list()
+
+    score_list = [0 for _ in range(len(spoken))]
+
+    testdata = [None]*len(spoken)
+    for i in range(len(testdata)):
+        testdata[i] = np.zeros((0,36))
+    val_i_end = int(0.2*len(features))
+    for i in range(0, val_i_end):
+            for j in range(0, len(spoken)):
+                if spoken[j] == labels[i]:
+                    testdata[j] = np.concatenate((testdata[j], features[i]))
+
+    for j, word_data_set in enumerate(testdata):
+        for data in word_data_set:
+            for i, module in enumerate(hmm_dnn_module_list):
+                score_list[i], _ = module.decode(np.array(data))
+            predicted_label_list.append(np.argmax(np.array(score_list)))
+    plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
