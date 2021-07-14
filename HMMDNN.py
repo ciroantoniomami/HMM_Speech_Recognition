@@ -464,9 +464,9 @@ if __name__ == "__main__":
                 if spoken[j] == labels[i]:
                     testdata[j] = np.concatenate((testdata[j], features[i]))
 
-    for j, word_data_set in enumerate(testdata):
+    for j in range(len(testdata)):
         #for data in word_data_set
         for i, module in enumerate(hmm_dnn_module_list):
-            score_list[i], _ = module.decode(word_data_set[j])
+            score_list[i], _ = module.decode(testdata[j])
         predicted_label_list.append(np.argmax(np.array(score_list)))
     plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
