@@ -26,8 +26,8 @@ def load_obj(name ):
         return pickle.load(f)
 
 class HMMSpeechRecog(object):
-    def __init__(self, filespath=Path('Crema/trainemotion/'), val_p=0.2, num_cep=39, add_mfcc_delta=False,
-                 add_mfcc_delta_delta=False):
+    def __init__(self, filespath=Path('Crema/data/'), val_p=0.2, num_cep=39, add_mfcc_delta=False,
+                 add_mfcc_delta_delta=False,load = True):
         self.filespath = Path(filespath)
         self.val_p = val_p
         self.num_cep = num_cep
@@ -42,7 +42,7 @@ class HMMSpeechRecog(object):
 
     def _get_filelist_labels(self):
         
-        self.fpaths = [f for f in os.listdir('Crema/trainemotion/') if os.path.splitext(f)[1] == '.wav']
+        self.fpaths = [f for f in os.listdir('Crema/data/') if os.path.splitext(f)[1] == '.wav']
         #self.fpathst = [f for f in os.listdir('Crema/testemotion/') if os.path.splitext(f)[1] == '.wav']
         self.labels = [file.split("_")[-2] for file in self.fpaths]
         
@@ -58,11 +58,11 @@ class HMMSpeechRecog(object):
         
         features = []
         for n, file in enumerate(fpaths):
-            if n % 10 == 0:
-                print(f'working on file nr {n}: {file}')
+            #if n % 10 == 0:
+            #    print(f'working on file nr {n}: {file}')
             
             
-            sample_rate, signal = self.read_wav('Crema/trainemotion/'+file)
+            sample_rate, signal = self.read_wav('Crema/data/'+file)
             
             
             
@@ -201,8 +201,8 @@ class HMMSpeechRecog(object):
                 scores.append(speechmodel.model.score(self.features[i]))
             id = scores.index(max(scores))
             self.m_PredictionlabelList.append(self.speechmodels[id].Class)
-            print(str(np.round(scores, 3)) + " " + str(max(np.round(scores, 3))) + " " + ":" +
-                  self.speechmodels[id].label)
+            #print(str(np.round(scores, 3)) + " " + str(max(np.round(scores, 3))) + " " + ":" +
+            #      self.speechmodels[id].label)
 
         self.get_accuracy(save_path=save_path)
 
@@ -341,6 +341,7 @@ class SpeechModel:
 
 
 if __name__ == "__main__":
+    model = HMMSpeechRecog(load=False)
     model = HMMSpeechRecog()
     model.train()
     model.test()
