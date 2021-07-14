@@ -13,6 +13,7 @@ from python_speech_features import mfcc, delta
 from hmmlearn import hmm
 import pickle
 import time
+from scipy.io import wavfile
 update_dnn = True
 fast_update = False
 forward_backward = False
@@ -25,7 +26,7 @@ def read_wav(fpath):
     return sample_rate, signal
 
 def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = False, add_mfcc_delta_delta = False):
-    mfcc_features = mfcc(signal, samplerate=sample_rate, numcep=num_cep)
+    mfcc_features = mfcc(signal, samplerate=sample_rate, numcep=12)
     wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
     if add_mfcc_delta:
         delta_features = delta(mfcc_features, num_delta)
@@ -38,7 +39,7 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = False, add_m
 
 def read_wav_get_features(eval=False, num_delta=5):
 
-    fpaths = [f for f in os.listdir('train/audio/') if os.path.splitext(f)[1] == '.wav']
+    fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
     labels = [file.split("_")[-2] for file in fpaths]
     spoken = list(set(labels))
     
@@ -46,7 +47,7 @@ def read_wav_get_features(eval=False, num_delta=5):
     features = []
     for n, file in enumerate(fpaths):
         
-        sample_rate, signal = read_wav('train/audio/' + file)
+        sample_rate, signal = read_wav('train/audio2/' + file)
         
         
         file_features = get_features(signal, sample_rate, num_delta)
@@ -321,7 +322,9 @@ if __name__ == "__main__":
 
     features, labels, spoken = read_wav_get_features()
     traindata = [None]*len(spoken)
-    val_i_end = 0.2*len(features)
+    for i in len(traindata):
+        traindata[i] = np.zeros((0,36))
+    val_i_end = int(0.2*len(features))
     for i in range(val_i_end, len(features[val_i_end:])):
             for j in range(0, len(spoken)):
                 if spoken[j] == labels[i]:
