@@ -1,0 +1,348 @@
+import collections
+import pickle
+
+import librosa
+import pandas as pd
+import numpy as np
+import scipy.stats as sp
+from scipy.io import wavfile
+from operator import itemgetter
+from pathlib import Path
+import os
+from hmmlearn import hmm
+from python_speech_features import mfcc, delta
+from sklearn.metrics import classification_report, confusion_matrix
+
+
+
+def save_obj(obj, name ):
+    with open('obj/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f)
+
+
+
+def load_obj(name ):
+    with open('obj/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+class HMMSpeechRecog(object):
+    def __init__(self, filespath=Path('Crema/trainemotion/'), val_p=0.2, num_cep=39, add_mfcc_delta=False,
+                 add_mfcc_delta_delta=False):
+        self.filespath = Path(filespath)
+        self.val_p = val_p
+        self.num_cep = num_cep
+        self.add_mfcc_delta = add_mfcc_delta
+        self.add_mfcc_delta_delta = add_mfcc_delta_delta
+        self._get_filelist_labels()
+        self.sample_rate = None
+        self.features = self._read_wav_get_features()
+        self._get_val_index_end()
+        self._get_gmmhmmindex_dict()
+        
+
+    def _get_filelist_labels(self):
+        
+        self.fpaths = [f for f in os.listdir('Crema/trainemotion/') if os.path.splitext(f)[1] == '.wav']
+        #self.fpathst = [f for f in os.listdir('Crema/testemotion/') if os.path.splitext(f)[1] == '.wav']
+        self.labels = [file.split("_")[-2] for file in self.fpaths]
+        
+        self.spoken = list(set(self.labels))
+
+    def read_wav(self, fpath):
+        sample_rate, signal = wavfile.read(fpath)
+        return sample_rate, signal
+
+    def _read_wav_get_features(self, fpaths=None, eval=False, num_delta=5):
+        if fpaths is None:
+            fpaths = self.fpaths
+        
+        features = []
+        for n, file in enumerate(fpaths):
+            if n % 10 == 0:
+                print(f'working on file nr {n}: {file}')
+            
+            
+            sample_rate, signal = self.read_wav('Crema/trainemotion/'+file)
+            
+            
+            
+            if self.sample_rate is None:
+                self.sample_rate = sample_rate
+            file_features = self._get_features(signal, sample_rate, num_delta)
+            features.append(file_features)
+        if eval:
+            return features
+        
+        c = list(zip(features, self.labels))
+        np.random.shuffle(c)
+        features, self.labels = zip(*c)
+         
+            
+
+        print(f'nr of features {len(features)}')
+        print(f'nr of labels {len(self.labels)}')
+        return features
+
+    def _get_features(self, signal, sample_rate, num_delta=5):
+        mfcc_features = mfcc(signal, samplerate=sample_rate, numcep=self.num_cep)
+        wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
+        if self.add_mfcc_delta:
+            delta_features = delta(mfcc_features, num_delta)
+            wav_features = np.append(wav_features, delta_features, 1)
+        if self.add_mfcc_delta_delta:
+            delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
+            wav_features = np.append(wav_features, delta_delta_features, 1)
+        wav_features = np.append(mfcc_features, wav_features, 1)
+        return wav_features
+
+    def _get_val_index_end(self):
+        self.val_i_end = int(len(self.features) * self.val_p)
+
+    def _get_gmmhmmindex_dict(self):
+        self.gmmhmmindexdict = {}
+        self.indexgmmhmmdict = {}
+        index = 0
+        for word in self.spoken:
+            self.gmmhmmindexdict[word] = index
+            self.indexgmmhmmdict[index] = word
+            index = index + 1
+
+    
+    
+    
+
+    def initByBakis(self):
+
+        tmp_p = 1.0/(3)
+        transmatPrior = np.array([[tmp_p, tmp_p, tmp_p, 0 ,0], \
+                               [0, tmp_p, tmp_p, tmp_p , 0], \
+                               [0, 0, tmp_p, tmp_p,tmp_p], \
+                               [0, 0, 0, 0.5, 0.5], \
+                               [0, 0, 0, 0, 1]],dtype=np.float)
+
+
+        startprobPrior = np.array([1, 0, 0, 0, 0],dtype=np.float)
+        
+
+        return startprobPrior, transmatPrior
+
+    def init_model(self, m_num_of_HMMStates, m_bakisLevel):
+        self.m_num_of_HMMStates = m_num_of_HMMStates
+        self.m_bakisLevel = m_bakisLevel
+        self.m_startprobPrior, self.m_transmatPrior = self.initByBakis()
+
+    def train(self, m_num_of_HMMStates=5, m_bakisLevel=2, m_num_of_mixtures=7, m_covarianceType='diag', m_n_iter=10):
+        self.m_num_of_mixtures = m_num_of_mixtures
+        self.m_covarianceType = m_covarianceType
+        self.m_n_iter = m_n_iter
+
+        self.init_model(m_num_of_HMMStates, m_bakisLevel)
+        self.speechmodels = [None] * len(self.spoken)
+
+        for key in self.gmmhmmindexdict:
+            self.speechmodels[self.gmmhmmindexdict[key]] = SpeechModel(self.gmmhmmindexdict[key], key,
+                                                                       self.m_num_of_HMMStates,
+                                                                       self.m_num_of_mixtures, self.m_transmatPrior,
+                                                                       self.m_startprobPrior, self.m_covarianceType,
+                                                                       self.m_n_iter,
+                                                                       self.features[0].shape[1])
+
+        for i in range(self.val_i_end, len(self.features[self.val_i_end:])):
+            for j in range(0, len(self.speechmodels)):
+                if int(self.speechmodels[j].Class) == int(self.gmmhmmindexdict[self.labels[i]]):
+                    self.speechmodels[j].traindata = np.concatenate(
+                        (self.speechmodels[j].traindata, self.features[i]))
+
+        for speechmodel in self.speechmodels:
+            speechmodel.model.fit(speechmodel.traindata)
+        n_spoken = len(self.spoken)
+        save_obj(speechmodel, "modelslist2")
+        print(f'Training completed -- {n_spoken} GMM-HMM models are built for {n_spoken} different types of words')
+        #self.pickle("obj/regoc")
+
+    def get_confusion_matrix(self, real_y, pred_y, labels):
+        conf_mat = confusion_matrix(real_y, pred_y, labels=labels , normalize="true")
+        df_conf_mat = pd.DataFrame(conf_mat)
+        df_conf_mat.columns = labels
+        df_conf_mat.index = labels
+        return df_conf_mat
+
+    def get_accuracy(self, save_path=None):
+        self.accuracy = 0.0
+        count = 0
+        predicted_labels = []
+
+        print("")
+        print("Prediction for test set:")
+
+        for i in range(0, len(self.labels[:self.val_i_end])):
+            predicted_label_i = self.m_PredictionlabelList[i]
+            predicted_labels.append(self.indexgmmhmmdict[predicted_label_i])
+            if self.gmmhmmindexdict[self.labels[i]] == predicted_label_i:
+                count = count + 1
+
+        report = classification_report(self.labels[:self.val_i_end], predicted_labels)
+        df_conf_mat = self.get_confusion_matrix(self.labels[:self.val_i_end], predicted_labels,
+                                                labels=list(set(list(self.labels[:self.val_i_end]) + predicted_labels)))
+        print(report)
+        print(df_conf_mat.to_string())
+        if save_path is not None:
+            Path(save_path).write_text(f'nr of files in test set: {count}\n{report}'
+                                       f'\nConfusion matrix (y-axis real label, x-axis predicted label):\n'
+                                       f'{df_conf_mat.to_string()}')
+
+    def test(self, save_path=None):
+        # Testing
+        self.m_PredictionlabelList = []
+
+        for i in range(0, len(self.features[:self.val_i_end])):
+            scores = []
+            for speechmodel in self.speechmodels:
+                scores.append(speechmodel.model.score(self.features[i]))
+            id = scores.index(max(scores))
+            self.m_PredictionlabelList.append(self.speechmodels[id].Class)
+            print(str(np.round(scores, 3)) + " " + str(max(np.round(scores, 3))) + " " + ":" +
+                  self.speechmodels[id].label)
+
+        self.get_accuracy(save_path=save_path)
+
+    def _predict(self, features):
+        Model_confidence = collections.namedtuple('model_prediction', ('name', 'score'))
+        predicted_labels_confs = []
+
+        for i in range(0, len(features)):
+            file_scores_confs = []
+            for speechmodel in self.speechmodels:
+                score = speechmodel.model.score(features[i])
+                label = speechmodel.label
+                file_scores_confs.append(Model_confidence(name=label, score=score))
+                file_scores_confs = sorted(file_scores_confs, key=itemgetter(1), reverse=True)
+            predicted_labels_confs.append(file_scores_confs)
+
+        return predicted_labels_confs
+
+    def predict_files(self, files):
+        features = self._read_wav_get_features(files, eval=True)
+        predicted_labels_confs = self._predict(features)
+        return predicted_labels_confs
+
+    def predict_signal(self, signal, sample_rate):
+        features = self._get_features(signal, sample_rate)
+        predicted_labels_confs = self._predict(features)
+        return predicted_labels_confs
+
+    # Calcuation of  mean ,entropy and relative entropy parameters
+    '''Entropyvalues for the 3 hidden states and 100 samples'''
+
+    def entropy_calculator(self, dataarray, meanvalues, sigmavalues):
+        entropyvals = []
+        for i in range(0, len(dataarray[0])):
+            totallogpdf = 0
+            entropy = 0
+            for j in range(0, len(dataarray)):
+                totallogpdf += sp.norm.logpdf(dataarray[j, i], meanvalues[i], sigmavalues[i])
+                entropy = (-1 * totallogpdf) / len(dataarray)
+            entropyvals.append(entropy)
+        return entropyvals
+
+    '''Relative Entropyvalues for the 6 columns of the given data and sampled values'''
+
+    def relative_entropy_calculator(self, givendata, samplesdata, givendatasigmavals, sampledsigmavals,
+                                    givendatameanvals, sampledmeanvals):
+        absgivendatasigmavals = [abs(number) for number in givendatasigmavals]
+        abssampleddatasigmavals = [abs(number) for number in sampledsigmavals]
+        relativeentropyvals = []
+
+        for i in range(0, len(givendata[0])):
+            totallogpdf = 0
+            relativeentropy = 0
+            for j in range(0, len(givendata)):
+                totallogpdf += (sp.norm.logpdf(samplesdata[j, i], sampledmeanvals[i],
+                                               abssampleddatasigmavals[i]) - sp.norm.logpdf(givendata[j, i],
+                                                                                            givendatameanvals[i],
+                                                                                            absgivendatasigmavals[i]))
+                relativeentropy = (-1 * totallogpdf) / float(len(givendata))
+            relativeentropyvals.append(relativeentropy)
+        return relativeentropyvals
+
+    def calc_mean_entropy(self):
+        for speechmodel in self.speechmodels:
+            print("For GMMHMM with label:" + speechmodel.label)
+            samplesdata, state_sequence = speechmodel.model.sample(n_samples=len(speechmodel.traindata))
+
+            sigmavals = []
+            meanvals = []
+
+            for i in range(0, len(speechmodel.traindata[0])):
+                sigmavals.append(np.mean(speechmodel.traindata[:, i]))
+                meanvals.append(np.std(speechmodel.traindata[:, i]))
+
+            sampledmeanvals = []
+            sampledsigmavals = []
+
+            for i in range(0, len(samplesdata[0])):
+                sampledmeanvals.append(np.mean(samplesdata[:, i]))
+                sampledsigmavals.append(np.std(samplesdata[:, i]))
+
+            GivenDataEntropyVals = self.entropy_calculator(speechmodel.traindata, meanvals, meanvals)
+            SampledValuesEntropyVals = self.entropy_calculator(samplesdata, sampledmeanvals, sampledsigmavals)
+            RelativeEntropy = self.relative_entropy_calculator(speechmodel.traindata, samplesdata, sigmavals,
+                                                               sampledsigmavals, meanvals, sampledmeanvals)
+
+            print("MeanforGivenDataValues:")
+            roundedmeanvals = np.round(meanvals, 3)
+            print(str(roundedmeanvals))
+            print("")
+
+            print("EntropyforGivenDataValues:")
+            roundedentropyvals = np.round(GivenDataEntropyVals, 3)
+            print(str(roundedentropyvals))
+            print("")
+
+            print("MeanforSampleddatavalues:")
+            roundedsampledmeanvals = np.round(sampledmeanvals, 3)
+            print(str(roundedsampledmeanvals))
+            print("")
+
+            print("EntropyforSampledDataValues:")
+            roundedsampledentvals = np.round(SampledValuesEntropyVals, 3)
+            print(str(roundedsampledentvals))
+            print("")
+
+            print("RelativeEntopyValues:")
+            roundedrelativeentvals = np.round(RelativeEntropy, 3)
+            print(str(roundedrelativeentvals))
+            print("")
+
+    def pickle(self, filename):
+        '''save model to file'''
+        f = open(filename, 'wb')
+        pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
+        f.close()
+
+    @staticmethod
+    def unpickle(filename):
+        '''read model from file'''
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
+
+
+class SpeechModel:
+    def __init__(self, Class, label, m_num_of_HMMStates, m_num_of_mixtures, m_transmatPrior, m_startprobPrior,
+                 m_covarianceType='diag', m_n_iter=10, n_features_traindata=12):
+        self.traindata = np.zeros((0, n_features_traindata))
+        self.Class = Class
+        self.label = label
+        self.model = hmm.GMMHMM(n_components=m_num_of_HMMStates, n_mix=m_num_of_mixtures,
+                                transmat_prior=m_transmatPrior, startprob_prior=m_startprobPrior,
+                                covariance_type=m_covarianceType, n_iter=m_n_iter)
+
+
+
+
+if __name__ == "__main__":
+    model = HMMSpeechRecog()
+    model.train()
+    model.test()
+    #predicted_labels = model.predict_files(['data/test_data/apple15.wav'])
+    #print(f'predicted label {predicted_labels}')
