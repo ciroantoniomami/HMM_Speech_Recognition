@@ -26,7 +26,7 @@ def load_obj(name ):
         return pickle.load(f)
 
 class HMMSpeechRecog(object):
-    def __init__(self, filespath=Path('Crema/data/'), val_p=0.2, num_cep=39, add_mfcc_delta=False,
+    def __init__(self, filespath=Path('train/audio2/'), val_p=0.2, num_cep=39, add_mfcc_delta=False,
                  add_mfcc_delta_delta=False,load = True):
         self.filespath = Path(filespath)
         self.val_p = val_p
@@ -42,9 +42,9 @@ class HMMSpeechRecog(object):
 
     def _get_filelist_labels(self):
         
-        self.fpaths = [f for f in os.listdir('Crema/data/') if os.path.splitext(f)[1] == '.wav']
+        self.fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
         #self.fpathst = [f for f in os.listdir('Crema/testemotion/') if os.path.splitext(f)[1] == '.wav']
-        self.labels = [file.split("_")[-2] for file in self.fpaths]
+        self.labels = [file.split("_")[-1][1:] for file in self.fpaths]
         
         self.spoken = list(set(self.labels))
 
@@ -62,7 +62,7 @@ class HMMSpeechRecog(object):
             #    print(f'working on file nr {n}: {file}')
             
             
-            sample_rate, signal = self.read_wav('Crema/data/'+file)
+            sample_rate, signal = self.read_wav('train/audio2/'+file)
             
             
             
@@ -131,7 +131,7 @@ class HMMSpeechRecog(object):
         self.m_bakisLevel = m_bakisLevel
         self.m_startprobPrior, self.m_transmatPrior = self.initByBakis()
 
-    def train(self, m_num_of_HMMStates=5, m_bakisLevel=2, m_num_of_mixtures=7, m_covarianceType='diag', m_n_iter=10):
+    def train(self, m_num_of_HMMStates=5, m_bakisLevel=2, m_num_of_mixtures=18, m_covarianceType='diag', m_n_iter=10):
         self.m_num_of_mixtures = m_num_of_mixtures
         self.m_covarianceType = m_covarianceType
         self.m_n_iter = m_n_iter
