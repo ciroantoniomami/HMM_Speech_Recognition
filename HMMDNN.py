@@ -465,8 +465,8 @@ if __name__ == "__main__":
                     testdata[j] = np.concatenate((testdata[j], features[i]))
 
     for j, word_data_set in enumerate(testdata):
-        for data in word_data_set:
-            for i, module in enumerate(hmm_dnn_module_list):
-                score_list[i], _ = module.decode(data)
-            predicted_label_list.append(np.argmax(np.array(score_list)))
+        #for data in word_data_set
+        for i, module in enumerate(hmm_dnn_module_list):
+            score_list[i], _ = module.decode(word_data_set[j])
+        predicted_label_list.append(np.argmax(np.array(score_list)))
     plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
