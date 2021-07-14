@@ -21,6 +21,7 @@ import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import confusion_matrix
+import pandas as pd
 def CCR(test_labels, classifier_labels):
     CCR_Val = 0
     for label_idx in range(len(test_labels)):
@@ -469,4 +470,9 @@ if __name__ == "__main__":
         for i, module in enumerate(hmm_dnn_module_list):
             score_list[i], _ = module.decode(testdata[j])
         predicted_label_list.append(np.argmax(np.array(score_list)))
-    plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
+    #plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
+    conf_mat = confusion_matrix(labels[0:val_i_end], predicted_label_list, labels=list(set(list(labels[:val_i_end]) )) , normalize="true")
+    df_conf_mat = pd.DataFrame(conf_mat)
+    df_conf_mat.columns = list(set(list(labels[:val_i_end])))
+    df_conf_mat.index = list(set(list(labels[:val_i_end])))
+    print(df_conf_mat.to_string())
