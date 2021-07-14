@@ -14,13 +14,64 @@ from hmmlearn import hmm
 import pickle
 import time
 from scipy.io import wavfile
-from plot_conf_mat import plot_confusion_matrix
 update_dnn = True
 fast_update = False
 forward_backward = False
+import itertools
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import confusion_matrix
+def CCR(test_labels, classifier_labels):
+    CCR_Val = 0
+    for label_idx in range(len(test_labels)):
+        if test_labels[label_idx] == classifier_labels[label_idx]:
+            CCR_Val += 1
 
-     
-        
+    return 100.0 * CCR_Val / len(test_labels)
+
+
+
+def plot_confusion_matrix(test_labels, classifier_labels, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    plt.figure()
+
+    cm = confusion_matrix(test_labels, classifier_labels)
+
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    title += '\nCCR is = ' + str(CCR(test_labels, classifier_labels))
+
+    print(title)
+
+    print(cm)
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
 
 def read_wav(fpath):
     sample_rate, signal = wavfile.read(fpath)
@@ -40,7 +91,7 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mf
 
 def read_wav_get_features(eval=False, num_delta=5):
 
-    fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
+    fpaths = [f for f in os.listdir('train/audio3/') if os.path.splitext(f)[1] == '.wav']
     labels = [file.split("_")[-2] for file in fpaths]
     spoken = list(set(labels))
     
@@ -48,7 +99,7 @@ def read_wav_get_features(eval=False, num_delta=5):
     features = []
     for n, file in enumerate(fpaths):
         
-        sample_rate, signal = read_wav('train/audio2/' + file)
+        sample_rate, signal = read_wav('train/audio3/' + file)
         
         
         file_features = get_features(signal, sample_rate, num_delta)
@@ -89,14 +140,14 @@ class hmm_dnn(_BaseHMM):
         self.mlp = mlp
         self.mlp.info()
 
-     #def _compute_log_likelihood(self, X):
-     #    prob = self.mlp.log_probablity(X).astype(type(X[0, 0]))
- #
-     #    prob = prob - np.log(self.observation_count)
-     #    prob = prob - np.log(self.aucoustic_model + (self.aucoustic_model == 0))
- #
-     #    return prob
- #
+    def _compute_log_likelihood(self, X):
+        prob = self.mlp.log_probablity(X).astype(type(X[0, 0]))
+
+        #prob = prob - np.log(self.observation_count)
+        #prob = prob - np.log(self.aucoustic_model + (self.aucoustic_model == 0))
+
+        return prob
+
     def _accumulate_sufficient_statistics(self, stats, X, epsilon, gamma, path, bwdlattice):
 
         stats['nobs'] += 1
@@ -344,9 +395,10 @@ if __name__ == "__main__":
 
     
     for i, module in enumerate(gmmhmm_module_list):
-        for data in traindata[i]:
-            prob, path = module.decode(np.array(data))
-            seq_mapper.append((i, data, path))
+        #for data in traindata[i]:
+
+        prob, path = module.decode(traindata[i])
+        seq_mapper.append((i, traindata[i], path))
 
         save_list(seq_mapper, 'path.dict')
 
@@ -396,8 +448,6 @@ if __name__ == "__main__":
     print('---- training HMM-DNN')
     start_train_time = time.time()
     for i, module in enumerate(hmm_dnn_module_list):
-        
-
         module.fit(traindata[i])
     print("Train Time: ", time.time() - start_train_time)
 
@@ -417,6 +467,6 @@ if __name__ == "__main__":
     for j, word_data_set in enumerate(testdata):
         for data in word_data_set:
             for i, module in enumerate(hmm_dnn_module_list):
-                score_list[i], _ = module.decode(np.array(data))
+                score_list[i], _ = module.decode(data)
             predicted_label_list.append(np.argmax(np.array(score_list)))
     plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
