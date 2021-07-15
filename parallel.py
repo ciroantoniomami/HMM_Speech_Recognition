@@ -313,7 +313,7 @@ class MLP:
         self.net = NeuralNetwork(feature_size, class_count)
         self.loss_function = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.RMSprop(self.net.parameters())
-        self.epoch_count = 20
+        self.epoch_count = 50
         self.trained = False
 
     def train(self, data, label, epoch=None):
