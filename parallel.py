@@ -47,7 +47,7 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mf
 
 def read_wav_get_features(eval=False, num_delta=5):
 
-    fpaths = [f for f in os.listdir('train/audio3/') if os.path.splitext(f)[1] == '.wav']
+    fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
     labels = [file.split("_")[-1][1:-4] for file in fpaths]
     spoken = list(set(labels))
     
@@ -55,7 +55,7 @@ def read_wav_get_features(eval=False, num_delta=5):
     features = []
     for n, file in enumerate(fpaths):
         
-        sample_rate, signal = read_wav('train/audio3/' + file)
+        sample_rate, signal = read_wav('train/audio2/' + file)
         
         
         file_features = get_features(signal, sample_rate, num_delta)
@@ -199,11 +199,11 @@ def fit1(model, X, lengths=None):
 
         X = check_array(X)
         model._init(X, lengths=lengths)
-        model._checmodel
+        model._check()
         model.monitor_ = ConvergenceMonitor(model.tol, model.n_iter, model.verbose)
         for iter in range(model.n_iter):
             print('iteration: {}'.format(iter))
-            stats = self._initialize_sufficient_statistics()
+            stats = model._initialize_sufficient_statistics()
             curr_logprob = 0
             tt = 0
             path_list = list()
@@ -246,7 +246,7 @@ def fit1(model, X, lengths=None):
         
 
             model.monitor_.report(curr_logprob)
-            if model.monitor_.iter == self.monitor_.n_iter or \
+            if model.monitor_.iter == model.monitor_.n_iter or \
                     (len(model.monitor_.history) == 2 and
                      abs(model.monitor_.history[1] - model.monitor_.history[0]) < model.monitor_.tol * abs(
                                 model.monitor_.history[1])):
@@ -342,7 +342,7 @@ class MLP:
         data = Variable(torch.from_numpy(data)).float()
 
         scores = self.net(data)
-        softmax_module = nn.LogSoftmax()
+        softmax_module = nn.LogSoftmax(dim=-1)
         prob = softmax_module(scores)
         return prob.data.numpy()
 
@@ -364,6 +364,25 @@ def load_list(file_name):
     with open(file_name, "rb") as fp:   # Unpickling
         return pickle.load(fp)
 
+def train1(mlp, data, label, epoch=None):
+        mlp.trained = True
+        mlp.net.train()
+        number_of_epuchs = mlp.epoch_count if epoch is None else epoch
+        for epoch in range(number_of_epuchs):
+
+            for i, (batch_data, batch_label) in enumerate(zip(data, label)):
+                batch_data = batch_data.reshape(1, -1)
+
+                batch_data = Variable(torch.from_numpy(batch_data)).float()
+                batch_label = Variable(torch.from_numpy(batch_label)).long()
+
+                mlp.optimizer.zero_grad()
+                score = mlp.net(batch_data)
+
+                loss = mlp.loss_function(score, batch_label)
+
+                loss.backward()
+                mlp.optimizer.step()
 
 if __name__ == "__main__":
 
@@ -435,8 +454,13 @@ if __name__ == "__main__":
     for i in range(len(spoken)):
         dnn_module_list.append(MLP(36, 5))
 
-    for i, module in enumerate(dnn_module_list):
-        module.train(phonetic_train_data[i], phonetic_train_label[i])
+    inputmlp = [None]*len(dnn_module_list)
+    for i in range(len(dnn_module_list)):
+        inputmlp[i] = (dnn_module_list[i],phonetic_train_data[i], phonetic_train_label[i])
+    
+    with Pool(13) as p:
+        p.starmap(train1, inputmlp)
+    
     
     print('number of DNN:',len(dnn_module_list))
 
@@ -470,29 +494,6 @@ if __name__ == "__main__":
     #    module.fit(traindata[i])
     print("Train Time: ", time.time() - start_train_time)
 
-    save_obj(hmm_dnn_module_list,'hmm_dnn_list')
+    save_obj(hmm_dnn_module_list,'hmm_dnn_list_parallel')
 
-    predicted_label_list = list()
-
-    score_list = [0 for _ in range(len(spoken))]
-
-    testdata = [None]*len(spoken)
-    for i in range(len(testdata)):
-        testdata[i] = np.zeros((0,36))
-    val_i_end = int(0.2*len(features))
-    for i in range(0, val_i_end):
-            for j in range(0, len(spoken)):
-                if spoken[j] == labels[i]:
-                    testdata[j] = np.concatenate((testdata[j], features[i]))
-
-    for j in range(len(testdata)):
-        #for data in word_data_set
-        for i, module in enumerate(hmm_dnn_module_list):
-            score_list[i], _ = module.decode(testdata[j])
-        predicted_label_list.append(np.argmax(np.array(score_list)))
-    #plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
-    conf_mat = confusion_matrix(labels[0:val_i_end], predicted_label_list, labels=list(set(list(labels[:val_i_end]) )) , normalize="true")
-    df_conf_mat = pd.DataFrame(conf_mat)
-    df_conf_mat.columns = list(set(list(labels[:val_i_end])))
-    df_conf_mat.index = list(set(list(labels[:val_i_end])))
-    print(df_conf_mat.to_string())
+ 
