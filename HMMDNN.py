@@ -1,3 +1,4 @@
+from HMM2 import load_obj, save_obj
 from hmmlearn.base import _BaseHMM, ConvergenceMonitor
 from hmmlearn.utils import iter_from_X_lengths, normalize
 from librosa import feature
@@ -93,7 +94,7 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mf
 def read_wav_get_features(eval=False, num_delta=5):
 
     fpaths = [f for f in os.listdir('train/audio3/') if os.path.splitext(f)[1] == '.wav']
-    labels = [file.split("_")[-2] for file in fpaths]
+    labels = [file.split("_")[-1][1:-4] for file in fpaths]
     spoken = list(set(labels))
     
     
@@ -375,6 +376,10 @@ if __name__ == "__main__":
     startprobPrior = np.array([1, 0, 0, 0, 0],dtype=np.float64)
 
     features, labels, spoken = read_wav_get_features()
+    save_obj(features,'featurelist')
+    save_obj(labels,'labelslist')
+    for w in spoken:
+        print(w)
     traindata = [None]*len(spoken)
     for i in range(len(traindata)):
         traindata[i] = np.zeros((0,36))
@@ -383,6 +388,9 @@ if __name__ == "__main__":
             for j in range(0, len(spoken)):
                 if spoken[j] == labels[i]:
                     traindata[j] = np.concatenate((traindata[j], features[i]))
+    
+
+    #traindata = load_obj('featurelist')
 
     gmmhmm_module_list = []
     seq_mapper = []
@@ -433,6 +441,8 @@ if __name__ == "__main__":
 
     for i, module in enumerate(dnn_module_list):
         module.train(phonetic_train_data[i], phonetic_train_label[i])
+    
+    print('number of DNN:',len(dnn_module_list))
 
     # create hmm dnn modules
     #############################################################################
@@ -444,13 +454,17 @@ if __name__ == "__main__":
                     startprob_prior=gmmhmm_module_list[i].startprob_, transmat_prior=gmmhmm_module_list[i].transmat_,
                     n_iter=10))
 
+    print('number of HMM-DNN:',len(hmm_dnn_module_list))
     # train hmm dnn modules
     #############################################################################
     print('---- training HMM-DNN')
     start_train_time = time.time()
     for i, module in enumerate(hmm_dnn_module_list):
+        print('HMM_DNN number:',i)
         module.fit(traindata[i])
     print("Train Time: ", time.time() - start_train_time)
+
+    save_obj(hmm_dnn_module_list,'hmm_dnn_list')
 
     predicted_label_list = list()
 
