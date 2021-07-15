@@ -93,7 +93,7 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mf
 
 def read_wav_get_features(eval=False, num_delta=5):
 
-    fpaths = [f for f in os.listdir('train/audio3/') if os.path.splitext(f)[1] == '.wav']
+    fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
     labels = [file.split("_")[-1][1:-4] for file in fpaths]
     spoken = list(set(labels))
     
@@ -101,7 +101,7 @@ def read_wav_get_features(eval=False, num_delta=5):
     features = []
     for n, file in enumerate(fpaths):
         
-        sample_rate, signal = read_wav('train/audio3/' + file)
+        sample_rate, signal = read_wav('train/audio2/' + file)
         
         
         file_features = get_features(signal, sample_rate, num_delta)
@@ -466,27 +466,3 @@ if __name__ == "__main__":
 
     save_obj(hmm_dnn_module_list,'hmm_dnn_list')
 
-    predicted_label_list = list()
-
-    score_list = [0 for _ in range(len(spoken))]
-
-    testdata = [None]*len(spoken)
-    for i in range(len(testdata)):
-        testdata[i] = np.zeros((0,36))
-    val_i_end = int(0.2*len(features))
-    for i in range(0, val_i_end):
-            for j in range(0, len(spoken)):
-                if spoken[j] == labels[i]:
-                    testdata[j] = np.concatenate((testdata[j], features[i]))
-
-    for j in range(len(testdata)):
-        #for data in word_data_set
-        for i, module in enumerate(hmm_dnn_module_list):
-            score_list[i], _ = module.decode(testdata[j])
-        predicted_label_list.append(np.argmax(np.array(score_list)))
-    #plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
-    conf_mat = confusion_matrix(labels[0:val_i_end], predicted_label_list, labels=list(set(list(labels[:val_i_end]) )) , normalize="true")
-    df_conf_mat = pd.DataFrame(conf_mat)
-    df_conf_mat.columns = list(set(list(labels[:val_i_end])))
-    df_conf_mat.index = list(set(list(labels[:val_i_end])))
-    print(df_conf_mat.to_string())
