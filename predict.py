@@ -93,7 +93,7 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mf
 
 def read_wav_get_features(eval=False, num_delta=5):
 
-    fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
+    fpaths = [f for f in os.listdir('train/audio3/') if os.path.splitext(f)[1] == '.wav']
     labels = [file.split("_")[-1][1:-4] for file in fpaths]
     spoken = list(set(labels))
     
@@ -101,7 +101,7 @@ def read_wav_get_features(eval=False, num_delta=5):
     features = []
     for n, file in enumerate(fpaths):
         
-        sample_rate, signal = read_wav('train/audio2/' + file)
+        sample_rate, signal = read_wav('train/audio3/' + file)
         
         
         file_features = get_features(signal, sample_rate, num_delta)
@@ -341,7 +341,7 @@ class MLP:
         data = Variable(torch.from_numpy(data)).float()
 
         scores = self.net(data)
-        softmax_module = nn.LogSoftmax()
+        softmax_module = nn.LogSoftmax(dim=-1)
         prob = softmax_module(scores)
         return prob.data.numpy()
 
@@ -364,105 +364,30 @@ def load_list(file_name):
         return pickle.load(fp)
 
 
+
 if __name__ == "__main__":
 
-    tmp_p = 1.0/3
-    transmatPrior = np.array([[tmp_p, tmp_p, tmp_p, 0 ,0], \
-                           [0, tmp_p, tmp_p, tmp_p , 0], \
-                           [0, 0, tmp_p, tmp_p,tmp_p], \
-                           [0, 0, 0, 0.5, 0.5], \
-                           [0, 0, 0, 0, 1]],dtype=np.float64)
+    features = load_obj('featurelist')
+    labels = load_obj('labelslist')
+    spoken = list(set(labels))
 
-    startprobPrior = np.array([1, 0, 0, 0, 0],dtype=np.float64)
+    hmm_dnn_module_list = load_obj('hmm_dnn_list')
 
-    features, labels, spoken = read_wav_get_features()
-    save_obj(features,'featurelist')
-    save_obj(labels,'labelslist')
-    for w in spoken:
-        print(w)
-    traindata = [None]*len(spoken)
-    for i in range(len(traindata)):
-        traindata[i] = np.zeros((0,36))
+    predicted_label_list = list()
+
+    score_list = [0 for _ in range(len(spoken))]
+
+
     val_i_end = int(0.2*len(features))
-    for i in range(val_i_end, len(features[val_i_end:])):
-            for j in range(0, len(spoken)):
-                if spoken[j] == labels[i]:
-                    traindata[j] = np.concatenate((traindata[j], features[i]))
+   
+    for j in range(len(features[0:val_i_end])):
+        for i, module in enumerate(hmm_dnn_module_list):
+            score_list[i], _ = module.decode(features[j])
+        predicted_label_list.append(spoken[np.argmax(score_list)])
+    #plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
     
-
-    #traindata = load_obj('featurelist')
-
-    gmmhmm_module_list = []
-    seq_mapper = []
-
-    for i in range(len(spoken)):
-            gmmhmm_module_list.append(hmm.GMMHMM(n_components=5, n_mix=18,
-                                                 covariance_type='diag', transmat_prior=transmatPrior, startprob_prior=startprobPrior, n_iter=10))
-
-    for i, module in enumerate(gmmhmm_module_list):
-        module.fit(traindata[i])
-
-    
-    for i, module in enumerate(gmmhmm_module_list):
-        #for data in traindata[i]:
-
-        prob, path = module.decode(traindata[i])
-        seq_mapper.append((i, traindata[i], path))
-
-        save_list(seq_mapper, 'path.dict')
-
-    
-
-    
-    phonetic_train_data = [np.zeros((0, 36))] * len(spoken)
-    phonetic_train_label = [np.zeros((0, 1))] * len(spoken)
-
-    #language_model = [np.zeros(states_count) for _ in range(len(spoken))]
-
-    for label, data, seq in seq_mapper:
-        phonetic_train_data[label] = np.vstack([phonetic_train_data[label], np.array(data)])
-        phonetic_train_label[label] = np.vstack([phonetic_train_label[label], np.array(seq).reshape(-1, 1)])
-
-        #for i, seq_sample in enumerate(seq):
-        #    language_model[label][seq_sample] += 1
-
-    #observation_count = 0
-    #for i in range(len(spoken)):
-    #    language_model[i] = language_model[i] / np.sum(language_model[i])
-    #    print('lang model: ', language_model[i])
-    #    observation_count += phonetic_train_data[i].shape[0]
-
-    # train DNN network
-    #############################################################################
-    print('---- training DNN network')
-    dnn_module_list = []
-    for i in range(len(spoken)):
-        dnn_module_list.append(MLP(36, 5))
-
-    for i, module in enumerate(dnn_module_list):
-        module.train(phonetic_train_data[i], phonetic_train_label[i])
-    
-    print('number of DNN:',len(dnn_module_list))
-
-    # create hmm dnn modules
-    #############################################################################
-    hmm_dnn_module_list = []
-    for i in range(len(spoken)):
-        hmm_dnn_module_list.append(
-            hmm_dnn(dnn_module_list[i],
-                    n_components = 5,
-                    startprob_prior=gmmhmm_module_list[i].startprob_, transmat_prior=gmmhmm_module_list[i].transmat_,
-                    n_iter=10))
-
-    print('number of HMM-DNN:',len(hmm_dnn_module_list))
-    # train hmm dnn modules
-    #############################################################################
-    print('---- training HMM-DNN')
-    start_train_time = time.time()
-    for i, module in enumerate(hmm_dnn_module_list):
-        print('HMM_DNN number:',i)
-        module.fit(traindata[i])
-    print("Train Time: ", time.time() - start_train_time)
-
-    save_obj(hmm_dnn_module_list,'hmm_dnn_list')
-
+    conf_mat = confusion_matrix(labels[0:val_i_end], predicted_label_list, labels=list(set(list(labels[:val_i_end]) )) , normalize="true")
+    df_conf_mat = pd.DataFrame(conf_mat)
+    df_conf_mat.columns = list(set(list(labels[:val_i_end])))
+    df_conf_mat.index = list(set(list(labels[:val_i_end])))
+    print(df_conf_mat.to_string())
