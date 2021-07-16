@@ -79,7 +79,7 @@ class hmm_dnn(_BaseHMM):
     def __init__(self, mlp,  n_components=1,
                  startprob_prior=1.0, transmat_prior=1.0,
                  algorithm="viterbi", random_state=None,
-                 n_iter=10, tol=1e-2, verbose=False,
+                 n_iter=10, tol=1e-2, verbose=True,
                  params="stmc", init_params="stmc"):
 
         _BaseHMM.__init__(self, n_components,
@@ -159,7 +159,7 @@ class hmm_dnn(_BaseHMM):
                 stats['start'] /= tt
                 stats['trans'] /= tt
 
-                self._do_mstep(stats)
+                self._do_mstep1(stats)
                 if update_dnn:
                     temp_path = np.zeros((0, 1))
                     for k, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
@@ -178,7 +178,7 @@ class hmm_dnn(_BaseHMM):
         print('----------------------------------------------')
         return self
 
-    def _do_mstep(self, stats):
+    def _do_mstep1(self, stats):
         if 's' in self.params:
             startprob_ = stats['start']
             self.startprob_ = np.where(self.startprob_ == 0.0,
@@ -261,9 +261,9 @@ class NeuralNetwork(nn.Module):
     def __init__(self, feature_size, class_count):
         super(NeuralNetwork, self).__init__()
 
-        mid1_neuron = 40
-        mid2_neuron = 30
-        mid3_neuron = 20
+        mid1_neuron = 70
+        mid2_neuron = 100
+        mid3_neuron = 70
 
         self.layer1 = nn.Sequential(
             nn.Linear(feature_size, mid1_neuron)
@@ -313,7 +313,7 @@ class MLP:
         self.net = NeuralNetwork(feature_size, class_count)
         self.loss_function = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.RMSprop(self.net.parameters())
-        self.epoch_count = 50
+        self.epoch_count = 100
         self.trained = False
 
     def train(self, data, label, epoch=None):
@@ -323,7 +323,9 @@ class MLP:
         for epoch in range(number_of_epuchs):
 
             for i, (batch_data, batch_label) in enumerate(zip(data, label)):
+                #print(batch_data.shape)
                 batch_data = batch_data.reshape(1, -1)
+                #print(batch_data.shape)
 
                 batch_data = Variable(torch.from_numpy(batch_data)).float()
                 batch_label = Variable(torch.from_numpy(batch_label)).long()
@@ -411,6 +413,8 @@ if __name__ == "__main__":
                 if spoken[j] == labels[i]:
                     traindata[j].append(features[i])
                     trainlength[j].append(len(features[i]))
+                    print(f"For model {j} \n Traindata.shape = {(np.concatenate(traindata[j])).shape}  sum= {(sum(np.array(trainlength[j])))}\n")
+    
     
     ##################
     #traindata = load_obj('featurelist')
@@ -476,7 +480,7 @@ if __name__ == "__main__":
             hmm_dnn(dnn_module_list[i],
                     n_components = 5,
                     startprob_prior=gmmhmm_module_list[i].startprob_, transmat_prior=gmmhmm_module_list[i].transmat_,
-                    n_iter=10))
+                    n_iter=50))
 
     print('number of HMM-DNN:',len(hmm_dnn_module_list))
     # train hmm dnn modules
