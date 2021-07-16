@@ -15,7 +15,7 @@ from hmmlearn import hmm
 import pickle
 import time
 from scipy.io import wavfile
-update_dnn = True
+update_dnn = False
 fast_update = False
 forward_backward = False
 import itertools
@@ -315,12 +315,14 @@ class MLP:
         self.optimizer = torch.optim.RMSprop(self.net.parameters())
         self.epoch_count = 100
         self.trained = False
+         
 
     def train(self, data, label, epoch=None):
         self.trained = True
         self.net.train()
         number_of_epuchs = self.epoch_count if epoch is None else epoch
         for epoch in range(number_of_epuchs):
+            accuracy_meter = AverageMeter()
 
             for i, (batch_data, batch_label) in enumerate(zip(data, label)):
                 #print(batch_data.shape)
@@ -337,6 +339,11 @@ class MLP:
 
                 loss.backward()
                 self.optimizer.step()
+
+                acc = accuracy(score, batch_label)
+        
+                accuracy_meter.update(val=acc, n=batch_data.shape[0])
+            print(f"Epoch {epoch+1} completed. Accuracy: {accuracy_meter.avg}")
 
     def log_probablity(self, data):
         self.net.eval()
@@ -372,6 +379,7 @@ def train1(mlp, data, label, epoch=None):
         number_of_epuchs = mlp.epoch_count if epoch is None else epoch
         for epoch in range(number_of_epuchs):
 
+            accuracy_meter = AverageMeter()
             for i, (batch_data, batch_label) in enumerate(zip(data, label)):
                 batch_data = batch_data.reshape(1, -1)
 
@@ -385,6 +393,44 @@ def train1(mlp, data, label, epoch=None):
 
                 loss.backward()
                 mlp.optimizer.step()
+
+                acc = accuracy(score, batch_label)
+        
+                accuracy_meter.update(val=acc, n=batch_data.shape[0])
+                print(f"Epoch {epoch+1} completed. Accuracy: {accuracy_meter.avg}")
+
+
+
+class AverageMeter(object):
+    '''
+    a generic class to keep track of performance metrics during training or testing of models
+    '''
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+def accuracy(y_hat, y):
+    '''
+    y_hat is the model output - a Tensor of shape (n x num_classes)
+    y is the ground truth
+
+    How can we implement this function?
+    '''
+    classes_prediction = y_hat.argmax(dim=1)
+    match_ground_truth = classes_prediction == y # -> tensor of booleans
+    correct_matches = match_ground_truth.sum()
+    return (correct_matches / y_hat.shape[0]).item()
 
 if __name__ == "__main__":
 
