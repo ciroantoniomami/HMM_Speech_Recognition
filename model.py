@@ -15,7 +15,7 @@ from hmmlearn import hmm
 import pickle
 import time
 from scipy.io import wavfile
-update_dnn = False
+update_dnn = True
 fast_update = False
 forward_backward = False
 import itertools
@@ -312,7 +312,7 @@ class MLP:
     def __init__(self, feature_size, class_count):
         self.net = NeuralNetwork(feature_size, class_count)
         self.loss_function = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.RMSprop(self.net.parameters())
+        self.optimizer = torch.optim.Adam(self.net.parameters())
         self.epoch_count = 100
         self.trained = False
          
