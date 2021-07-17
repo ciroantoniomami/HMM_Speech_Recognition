@@ -384,10 +384,26 @@ if __name__ == "__main__":
         for i, module in enumerate(hmm_dnn_module_list):
             score_list[i], _ = module.decode(features[j])
         predicted_label_list.append(spoken[np.argmax(score_list)])
+    
+    
     #plot_confusion_matrix(labels[0:val_i_end], predicted_label_list, range(10))
     
     conf_mat = confusion_matrix(labels[0:val_i_end], predicted_label_list, labels=list(set(list(labels[:val_i_end]) )) , normalize="true")
     df_conf_mat = pd.DataFrame(conf_mat)
     df_conf_mat.columns = list(set(list(labels[:val_i_end])))
     df_conf_mat.index = list(set(list(labels[:val_i_end])))
+    print(df_conf_mat.to_string())
+
+    print("------------on training--------------")
+
+    for j in range(len(features[val_i_end:])):
+        for i, module in enumerate(hmm_dnn_module_list):
+            score_list[i], _ = module.decode(features[j])
+        predicted_label_list.append(spoken[np.argmax(score_list)])
+
+    
+    conf_mat = confusion_matrix(labels[val_i_end:], predicted_label_list, labels=list(set(list(labels[val_i_end:]) )) , normalize="true")
+    df_conf_mat = pd.DataFrame(conf_mat)
+    df_conf_mat.columns = list(set(list(labels[val_i_end:])))
+    df_conf_mat.index = list(set(list(labels[val_i_end:])))
     print(df_conf_mat.to_string())
