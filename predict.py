@@ -396,7 +396,7 @@ if __name__ == "__main__":
 
     print("------------on training--------------")
 
-    for j in range(len(features[val_i_end:])):
+    for j in range(val_i_end, len(features[val_i_end:])):
         for i, module in enumerate(hmm_dnn_module_list):
             score_list[i], _ = module.decode(features[j])
         predicted_label_list.append(spoken[np.argmax(score_list)])
