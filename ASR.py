@@ -139,7 +139,7 @@ def cross_validation(features, labels , spoken):
             acc.append(model.test())
         print("Mean accuracy for number of states:",num_states)
         print(sum(acc)/len(acc))
-        d[num_states] = sum(acc)/len(acc))
+        d[num_states] = sum(acc)/len(acc)
 
     return d 
 
