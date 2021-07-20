@@ -1,7 +1,7 @@
 import collections
 import pickle
 from pyexpat import features
-from zoneinfo import available_timezones
+
 
 import librosa
 import pandas as pd
