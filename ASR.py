@@ -274,7 +274,7 @@ class HMMSpeechRecog(object):
             self.m_PredictionlabelList.append(self.speechmodels[id].Class)
             #print(str(np.round(scores, 3)) + " " + str(max(np.round(scores, 3))) + " " + ":" +
             #      self.speechmodels[id].label)
-        #self.get_accuracy(save_path=save_path)
+        self.get_accuracy(save_path=save_path)
 
         return float(count/tot)
 
@@ -416,8 +416,10 @@ class SpeechModel:
 
 if __name__ == "__main__":
     features, labels , spoken = read_wav_get_features()
-    d = cross_validation(features, labels , spoken)
-    print(d)
+    #d = cross_validation(features, labels , spoken)
+    model = HMMSpeechRecog(features, labels , spoken,0)
+    model.train(m_num_of_HMMStates=5)
+    print(model.test())
     #data = {word : np.zeros((0,36)) for word in spoken}
     #for i in range(len(features)):
     #    for word in spoken:

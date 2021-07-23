@@ -1,137 +1,209 @@
 import numpy as np
-from hmmlearn.hmm import GMMHMM
+from hmmlearn import hmm
+from data_loader import *
 import warnings
-import os
-from python_speech_features import mfcc, delta
-import pickle
-from pathlib import Path
-#import librosa
-from scipy.io import wavfile
-import collections
-from operator import itemgetter
+from Util import *
+import argparse
+from MLP import MLP
+from hmm_dnn import *
+from plot_conf_mat import plot_confusion_matrix
+import matplotlib.pyplot as plt
+import time
+from sklearn.metrics import confusion_matrix
+import pandas as pd
 
-def extract_mfcc(full_audio_path, num_delta=5, add_mfcc_delta=True, add_mfcc_delta_delta=True):
-    sample_rate, wave =  wavfile.read(full_audio_path)
-    mfcc_features = mfcc(wave,sample_rate, 0.025, 
-    0.01,numcep=6,nfft = 1200, appendEnergy = True)   
-    #print(mfcc_features.shape)
-    wav_features = np.empty(shape=[mfcc_features.shape[0], 0])
-    if add_mfcc_delta:
-        delta_features = delta(mfcc_features, num_delta)
-        wav_features = np.append(wav_features, delta_features, 1)
-    #if add_mfcc_delta_delta:
-    #    delta_delta_features = librosa.feature.delta(mfcc_features, order=2)
-    #    wav_features = np.append(wav_features, delta_delta_features, 1)
-    wav_features = np.append(mfcc_features, wav_features, 1)
-       
-    
-    return wav_features
+parser = argparse.ArgumentParser(description='This is a script used to run the tests')
+parser.add_argument('-ldmp', '--load-mapper', action='store_true', help='load from saved mapper')
 
-def get_feature_list(path):
-    fileList = list(Path(path).rglob('*.wav'))
-    labels = [file.parent.stem for file in fileList]
-    features = []
-    for f in fileList:
-        features.append(extract_mfcc(f))
-    
-    c = list(zip(features, labels))
-    #np.random.shuffle(c)
-    features, labels = zip(*c)
+args = parser.parse_args()
 
-    print(f'nr of features {len(features)}')
-    print(f'nr of labels {len(labels)}')
+percent = 1
 
-    return features, labels
-    
+states_count = 5
+mixture_count = 3
+iteration_count = 20
+
+words_count = 10
+
+training_dataset, training_length, test_dataset, test_length = dataset_loader()
+
+feature_size = len(training_dataset[0][0])
+
+train_block_size = 660
+test_block_size = 220
+
+train_dataset_list = list()
+train_len_list = list()
+train_dataset_label = list()
+
+test_dataset_list = list()
+test_len_list = list()
+test_dataset_label = list()
+
+# data set arrangement
+#############################################################################
+for i in range(words_count):
+    train_dataset_list.append(
+        training_dataset[i * train_block_size: i * train_block_size + int(train_block_size * percent)])
+    train_len_list.append(training_length[i * train_block_size: i * train_block_size + int(train_block_size * percent)])
+    train_dataset_label = [label for label in range(10) for _ in range(int(train_block_size * percent))]
+
+    test_dataset_list.append(test_dataset[i * test_block_size: i * test_block_size + int(test_block_size * percent)])
+    test_len_list.append(test_length[i * test_block_size: i * test_block_size + int(test_block_size * percent)])
+    test_dataset_label = [label for label in range(10) for _ in range(int(test_block_size * percent))]
+
+# normalize data
+############################################################################
+temp_train = [np.zeros((0, 13)) for _ in range(words_count)]
+temp_test = [np.zeros((0, 13)) for _ in range(words_count)]
+
+for i in range(words_count):
+
+    temp_data = list()
+    for j in range(len(train_dataset_list[i])):
+        temp_data.append(np.array(train_dataset_list[i][j]))
+
+    train_dataset_list[i] = list()
+    for j in range(len(temp_data)):
+        train_dataset_list[i].append(
+            ((temp_data[j] - np.mean(temp_data[j], axis=0)) / np.std(temp_data[j], axis=0)).tolist())
+
+    temp_data = list()
+    for j in range(len(test_dataset_list[i])):
+        temp_data.append(np.array(test_dataset_list[i][j]))
+
+    test_dataset_list[i] = list()
+    for j in range(len(temp_data)):
+        test_dataset_list[i].append((temp_data[j] - np.mean(temp_data[j], axis=0)) / np.std(temp_data[j], axis=0))
+
+# train gmm hmm modules
+#############################################################################
+print('---- training gmm hmm ')
+seq_mapper = list()
+gmmhmm_module_list = list()
+
+if not args.load_mapper:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        for i in range(words_count):
+            gmmhmm_module_list.append(hmm.GMMHMM(n_components=states_count, n_mix=mixture_count,
+                                                 covariance_type='diag', n_iter=iteration_count))
+
+        for i, module in enumerate(gmmhmm_module_list):
+            module.fit(np.concatenate(train_dataset_list[i]), train_len_list[i])
+
+        # data labeling
+        #############################################################################
+        for i, module in enumerate(gmmhmm_module_list):
+            for data in train_dataset_list[i]:
+                prob, path = module.decode(np.array(data))
+                seq_mapper.append((i, data, path))
+
+        save_list(seq_mapper, 'path.dict')
+else:
+    seq_mapper = load_list('path.dict')
+
+# language model estimation
+#############################################################################
+print('---- builing language model')
+phonetic_train_data = [np.zeros((0, 13))] * words_count
+phonetic_train_label = [np.zeros((0, 1))] * words_count
+
+language_model = [np.zeros(states_count) for _ in range(words_count)]
+
+for label, data, seq in seq_mapper:
+    phonetic_train_data[label] = np.vstack([phonetic_train_data[label], np.array(data)])
+    phonetic_train_label[label] = np.vstack([phonetic_train_label[label], np.array(seq).reshape(-1, 1)])
+
+    for i, seq_sample in enumerate(seq):
+        language_model[label][seq_sample] += 1
+
+observation_count = 0
+for i in range(words_count):
+    language_model[i] = language_model[i] / np.sum(language_model[i])
+    print('lang model: ', language_model[i])
+    observation_count += phonetic_train_data[i].shape[0]
+
+# train DNN network
+#############################################################################
+print('---- training DNN network')
+dnn_module_list = list()
+for i in range(words_count):
+    dnn_module_list.append(MLP(feature_size, states_count))
+
+for i, module in enumerate(dnn_module_list):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        module.train(phonetic_train_data[i], phonetic_train_label[i])
+
+# if True:
+#
+#     with warnings.catch_warnings():
+#         warnings.simplefilter("ignore")
+#
+#         acc_mat = np.zeros((words_count, words_count))
+#         for i, module in enumerate(dnn_module_list):
+#             for j in range(words_count):
+#                 acc = 0
+#                 tt = 0
+#                 pred = module.predict(phonetic_train_data[j])
+#                 for k, label in enumerate(pred):
+#                     acc += phonetic_train_label[j][k] == label
+#                     tt += 1
+#                 acc_mat[i, j] = acc / tt
+#
+#         print('acc_mat : ', acc_mat)
+
+# create hmm dnn modules
+#############################################################################
+hmm_dnn_module_list = list()
+for i in range(words_count):
+    hmm_dnn_module_list.append(
+        hmm_dnn(dnn_module_list[i], aucoustic_model=language_model[i], observation_count=observation_count,
+                n_components=states_count,
+                startprob_prior=gmmhmm_module_list[i].startprob_, transmat_prior=gmmhmm_module_list[i].transmat_,
+                n_iter=iteration_count))
+
+# train hmm dnn modules
+#############################################################################
+print('---- training HMM-DNN')
+start_train_time = time.time()
+for i, module in enumerate(hmm_dnn_module_list):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        module.fit(np.concatenate(train_dataset_list[i]), train_len_list[i])
+print("Train Time: ", time.time() - start_train_time)
+
+save_list(hmm_dnn_module_list,'sarebbe_bellissimo')
+def test(dataset_list, dataset_label, module_list):
+    predicted_label_list = list()
+
+    print('---- Running Test')
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+
+        score_list = [0 for _ in range(words_count)]
+
+        for j, word_data_set in enumerate(dataset_list):
+            for data in word_data_set:
+                for i, module in enumerate(module_list):
+                    score_list[i], _ = module.decode(np.array(data))
+
+                predicted_label_list.append(np.argmax(np.array(score_list)))
+
+        print(predicted_label_list)
+        conf_mat = confusion_matrix(dataset_label, predicted_label_list, labels= list(set(list(dataset_label))),normalize="true")
+        df_conf_mat = pd.DataFrame(conf_mat)
+        df_conf_mat.columns = list(set(list(dataset_label)))
+        df_conf_mat.index = list(set(list(dataset_label)))
+        print(df_conf_mat.to_string())
 
 
-
-class SpeechModel:
-    def __init__(self, Class, label, transmatPrior, startprobPrior, m_n_iter=10, n_features_traindata=12):
-        self.Class = Class
-        self.label = label 
-        self.model = GMMHMM(n_components=3, n_mix=7,
-                                transmat_prior=transmatPrior, startprob_prior=startprobPrior,
-                                covariance_type='diag', n_iter=m_n_iter)
-        self.traindata = np.zeros((0,n_features_traindata))
+test(train_dataset_list, train_dataset_label, hmm_dnn_module_list)
+test(test_dataset_list, test_dataset_label, hmm_dnn_module_list)
 
 
-def train( features, labels, bakisLevel=2):
-    words = list(set(labels))
-    wordmodel = [None]*len(words)
-    transmatPrior, startprobPrior = initByBakis(3,bakisLevel)
-    for i in range(len(words)):
-        wordmodel[i]= SpeechModel(i, words[i], transmatPrior, startprobPrior)
-
-    for i in range(len(features)):
-        for j in range(len(wordmodel)):
-            lengths = [len(wordmodel[j].traindata)]
-            if wordmodel[j].label == labels[i]:
-                wordmodel[j].traindata= np.concatenate([wordmodel[j].traindata, features[i]])
-                lengths.append(len(features[i]))
-
-    for model in wordmodel:
-        model.model.fit(model.traindata,lengths)
-    
-    n_spoken = len(words)
-    print(f'Training completed -- {n_spoken} GMM-HMM models are built for {n_spoken} different types of words')
-
-    return wordmodel
-
-def getTransmatPrior(inumstates, bakisLevel):
-        transmatPrior = (1 / float(bakisLevel)) * np.eye(inumstates)
-
-        for i in range(inumstates - (bakisLevel - 1)):
-            for j in range(bakisLevel - 1):
-                transmatPrior[i, i + j + 1] = 1. / bakisLevel
-
-        for i in range(inumstates - bakisLevel + 1, inumstates):
-            for j in range(inumstates - i - j):
-                transmatPrior[i, i + j] = 1. / (inumstates - i)
-
-        return transmatPrior
-
-def initByBakis(inumstates, ibakisLevel):
-        startprobPrior = np.zeros(inumstates)
-        startprobPrior[0: ibakisLevel - 1] = 1 / float((ibakisLevel - 1))
-        transmatPrior = getTransmatPrior(inumstates, ibakisLevel)
-        return startprobPrior, transmatPrior
-
-def predict(wordmodel, files):
-        features = get_feature_list(files)
-        Model_confidence = collections.namedtuple('model_prediction', ('name', 'score'))
-        predicted_labels_confs = []
-
-        for i in range(0, len(features)):
-            file_scores_confs = []
-            for model in wordmodel:
-                score = model.model.score(features[i])
-                label = model.label
-                file_scores_confs.append(Model_confidence(name=label, score=score))
-            file_scores_confs = sorted(file_scores_confs, key=itemgetter(1), reverse=True)
-            predicted_labels_confs.append(file_scores_confs[0])
-
-        return predicted_labels_confs
-
-
-
-
-def save_obj(obj, name ):
-    with open('obj/'+ name + '.pkl', 'wb') as f:
-        pickle.dump(obj, f)
-
-def load_obj(name ):
-    with open('obj/' + name + '.pkl', 'rb') as f:
-        return pickle.load(f)
-    
-
-
-if __name__ == "__main__":
-    features , labels= get_feature_list("train/audio2")
-    save_obj(features, "featureslist")
-    save_obj(labels, "labelslist")
-    #features = load_obj("featureslist")
-    #labels = load_obj("labelslist")
-    print(features[123].shape)
-    models = train(features, labels)
-    save_obj(models, "modelslist")
