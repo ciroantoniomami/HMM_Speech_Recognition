@@ -1,5 +1,4 @@
 from sklearn.linear_model import LogisticRegressionCV
-from HMM2 import load_obj, save_obj
 from hmmlearn.base import _BaseHMM, ConvergenceMonitor
 from hmmlearn.utils import iter_from_X_lengths, normalize
 from librosa import feature
@@ -51,16 +50,17 @@ def get_features(signal, sample_rate, num_delta=5, add_mfcc_delta = True, add_mf
 
 def read_wav_get_features(eval=False, num_delta=5):
 
-    fpaths = [f for f in os.listdir('train/audio3/') if os.path.splitext(f)[1] == '.wav']
+    fpaths = [f for f in os.listdir('train/audio2/') if os.path.splitext(f)[1] == '.wav']
     labels = [file.split("_")[-1][1:-4] for file in fpaths]
     spoken = list(set(labels))
+    spoken.sort()
     len_per_label = {key:0 for key in spoken}
 
     
     features = []
     for n, file in enumerate(fpaths):
         
-        sample_rate, signal = read_wav('train/audio3/' + file)
+        sample_rate, signal = read_wav('train/audio2/' + file)
         
         
         file_features = get_features(signal, sample_rate, num_delta)
@@ -85,27 +85,56 @@ if __name__ == "__main__":
     features, labels, spoken, len_per_label = read_wav_get_features()
     
     print(len_per_label)
-    
+    spoken = ["down","go","left","no","off","on","right","stop","up","yes"]
+    print(spoken)
     for word in spoken:
-        name = word + ".txt"
+        name = word + "train.txt"
         file = open(name,"a")
 
         val_i_end = int(0.2*len(features))
         count = 0
         for i in range(val_i_end, len(features[val_i_end:])):
-            count +=1
+            
             if labels[i] == word:
+                count +=1
+                if count == 301:
+                    break
                 for line in features[i]:
                     for j in range(len(line)):
                         file.write(str(line[j])+ " ")
                     file.write('\n')
                 file.write('\n')
+    
+    for word in spoken:
+        name = word + "test.txt"
+        file = open(name,"a")
+
+        val_i_end = int(0.2*len(features))
+        count = 0
+        for i in range(0,val_i_end):
+            
+            if labels[i] == word:
+                count +=1
+                if count == 51:
+                    break
+                for line in features[i]:
+                    for j in range(len(line)):
+                        file.write(str(line[j])+ " ")
+                    file.write('\n')
+                file.write('\n')
+
         
-    print(count)
+
     file2 = open("train.txt","a")
     for word in spoken:
-        name = word + ".txt"
+        name = word + "train.txt"
         file = open(name,"r")
         file2.write(file.read())
+    
+    file3 = open("test.txt","a")
+    for word in spoken:
+        name = word + "test.txt"
+        file = open(name,"r")
+        file3.write(file.read())
 
 
